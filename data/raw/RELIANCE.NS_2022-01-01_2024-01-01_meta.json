@@ -1,0 +1,28 @@
+{
+    "ticker": "RELIANCE.NS",
+    "source": "YFinanceHistoricalProvider",
+    "download_timestamp": "2026-10-04T12:30:47.736287",
+    "interval": "1d",
+    "requested_date_range": {
+        "start": "2022-01-01",
+        "end": "2024-01-01"
+    },
+    "actual_date_range": {
+        "start": "2022-01-03",
+        "end": "2023-12-29"
+    },
+    "validation_report": {
+        "number_of_rows": 493,
+        "start_date": "2022-01-03",
+        "end_date": "2023-12-29",
+        "missing_values": {
+            "Close": 0,
+            "High": 0,
+            "Low": 0,
+            "Open": 0,
+            "Volume": 0
+        },
+        "duplicate_rows": 0,
+        "frequency": "Unknown/Irregular"
+    }
+}

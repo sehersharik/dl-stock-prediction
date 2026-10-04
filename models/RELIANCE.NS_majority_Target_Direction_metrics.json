@@ -1,0 +1,64 @@
+{
+    "model_name": "majority",
+    "ticker": "RELIANCE.NS",
+    "target": "Target_Direction",
+    "metrics": {
+        "train": {
+            "Accuracy": 0.5073170731707317,
+            "Balanced Accuracy": 0.5,
+            "Precision": 0.0,
+            "Recall": 0.0,
+            "F1": 0.0,
+            "Confusion Matrix": [
+                [
+                    104,
+                    0
+                ],
+                [
+                    101,
+                    0
+                ]
+            ],
+            "ROC-AUC": 0.5,
+            "PR-AUC": 0.4926829268292683
+        },
+        "val": {
+            "Accuracy": 0.5909090909090909,
+            "Balanced Accuracy": 0.5,
+            "Precision": 0.0,
+            "Recall": 0.0,
+            "F1": 0.0,
+            "Confusion Matrix": [
+                [
+                    26,
+                    0
+                ],
+                [
+                    18,
+                    0
+                ]
+            ],
+            "ROC-AUC": 0.5,
+            "PR-AUC": 0.4090909090909091
+        },
+        "test": {
+            "Accuracy": 0.3409090909090909,
+            "Balanced Accuracy": 0.5,
+            "Precision": 0.0,
+            "Recall": 0.0,
+            "F1": 0.0,
+            "Confusion Matrix": [
+                [
+                    15,
+                    0
+                ],
+                [
+                    29,
+                    0
+                ]
+            ],
+            "ROC-AUC": 0.5,
+            "PR-AUC": 0.6590909090909091
+        }
+    }
+}

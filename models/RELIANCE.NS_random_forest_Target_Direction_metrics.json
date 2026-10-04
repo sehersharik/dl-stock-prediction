@@ -1,0 +1,64 @@
+{
+    "model_name": "random_forest",
+    "ticker": "RELIANCE.NS",
+    "target": "Target_Direction",
+    "metrics": {
+        "train": {
+            "Accuracy": 1.0,
+            "Balanced Accuracy": 1.0,
+            "Precision": 1.0,
+            "Recall": 1.0,
+            "F1": 1.0,
+            "Confusion Matrix": [
+                [
+                    104,
+                    0
+                ],
+                [
+                    0,
+                    101
+                ]
+            ],
+            "ROC-AUC": 1.0,
+            "PR-AUC": 1.0
+        },
+        "val": {
+            "Accuracy": 0.5,
+            "Balanced Accuracy": 0.5341880341880342,
+            "Precision": 0.43333333333333335,
+            "Recall": 0.7222222222222222,
+            "F1": 0.5416666666666666,
+            "Confusion Matrix": [
+                [
+                    9,
+                    17
+                ],
+                [
+                    5,
+                    13
+                ]
+            ],
+            "ROC-AUC": 0.5042735042735043,
+            "PR-AUC": 0.48382802021909793
+        },
+        "test": {
+            "Accuracy": 0.5227272727272727,
+            "Balanced Accuracy": 0.5896551724137931,
+            "Precision": 0.7857142857142857,
+            "Recall": 0.3793103448275862,
+            "F1": 0.5116279069767442,
+            "Confusion Matrix": [
+                [
+                    12,
+                    3
+                ],
+                [
+                    18,
+                    11
+                ]
+            ],
+            "ROC-AUC": 0.5310344827586206,
+            "PR-AUC": 0.694205859073314
+        }
+    }
+}

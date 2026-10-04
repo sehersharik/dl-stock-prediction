@@ -1,0 +1,19 @@
+{
+    "Accuracy": 0.3409090909090909,
+    "Balanced Accuracy": 0.5,
+    "Precision": 0.0,
+    "Recall": 0.0,
+    "F1": 0.0,
+    "Confusion Matrix": [
+        [
+            15,
+            0
+        ],
+        [
+            29,
+            0
+        ]
+    ],
+    "ROC-AUC": 0.5494252873563219,
+    "PR-AUC": 0.6760608687257762
+}

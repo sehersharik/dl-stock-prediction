@@ -1,0 +1,32 @@
+project:
+  name: "dl-stock-risk-prediction"
+  tickers: ["RELIANCE.NS", "TCS.NS"]
+
+data:
+  start_date: "2015-01-01"
+  end_date: "2024-01-01"
+  frequency: "1d"
+
+targets:
+  direction_shift: 1
+  downside_risk_threshold: -0.02
+
+features:
+  sequence_length: 30 # For sequential models like LSTM
+  groups:
+    raw: true
+    trend: true
+    momentum: true
+    volatility: true
+    volume: true
+    market_context: true
+  market_assets: ["^NSEI", "^INDIAVIX"]
+
+models:
+  baseline:
+    type: "xgboost"
+  deep_learning:
+    type: "lstm"
+    epochs: 100
+    batch_size: 64
+    learning_rate: 0.001
