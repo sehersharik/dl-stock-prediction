@@ -1,0 +1,79 @@
+{
+    "run_id": "20261007_003041",
+    "model_type": "mlp",
+    "ticker": "RELIANCE.NS",
+    "target": "Target_Direction",
+    "feature_set": "Count: 21",
+    "feature_list": [
+        "Return_1d",
+        "Return_5d",
+        "Return_10d",
+        "Return_20d",
+        "HL_Spread",
+        "CO_Spread",
+        "Dist_SMA20",
+        "Dist_SMA50",
+        "Dist_SMA200",
+        "SMA20_50_Ratio",
+        "SMA50_200_Ratio",
+        "RSI_14",
+        "MACD_Ratio",
+        "MACD_Hist_Ratio",
+        "ROC_12",
+        "ATR_Ratio",
+        "Rolling_Vol_20",
+        "BB_PctB",
+        "BB_Width",
+        "Vol_Change",
+        "Vol_Ratio_20"
+    ],
+    "training_date": "2026-10-07T00:30:42.770070",
+    "training_period": [
+        "2017-07-27 00:00:00",
+        "2023-10-19 00:00:00"
+    ],
+    "validation_period": [
+        "2023-10-20 00:00:00",
+        "2024-12-20 00:00:00"
+    ],
+    "test_period": [
+        "2024-12-23 00:00:00",
+        "2026-09-10 00:00:00"
+    ],
+    "sequence_length": 1,
+    "scaler_path": "/Users/sehersharik/.gemini/antigravity/scratch/dl-stock-prediction/models/RELIANCE/mlp/20261007_003041/scaler.joblib",
+    "random_seed": 42,
+    "hyperparameters": {
+        "type": "mlp",
+        "layers": [
+            32,
+            16
+        ],
+        "dropout": 0.2,
+        "use_batch_norm": false,
+        "epochs": 60,
+        "batch_size": 64,
+        "learning_rate": 0.001,
+        "weight_decay": 0.001
+    },
+    "metrics": {
+        "Accuracy": 0.4859154929577465,
+        "Balanced Accuracy": 0.4859154929577465,
+        "Precision": 0.4855072463768116,
+        "Recall": 0.47183098591549294,
+        "F1": 0.4785714285714286,
+        "Confusion Matrix": [
+            [
+                71,
+                71
+            ],
+            [
+                75,
+                67
+            ]
+        ],
+        "ROC-AUC": 0.4964292799047808,
+        "PR-AUC": 0.5271256173804316
+    },
+    "git_commit": "59c26d8ba2ff74a18af69b8c5e8e7825695ae94d"
+}

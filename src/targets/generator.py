@@ -7,38 +7,39 @@ class TargetGenerator:
     """
     Generates classification targets for next-day direction and downside risk.
     Strictly isolates targets from features to prevent data leakage.
+    Accepts raw price series to compute future returns without needing 'Close' in X.
     """
     def __init__(self, config: dict):
         self.config = config
         self.risk_threshold = self.config['targets'].get('downside_risk_threshold', -0.02)
         
-    def generate(self, df: pd.DataFrame, drop_na_targets: bool = True) -> tuple[pd.DataFrame, pd.DataFrame]:
+    def generate(self, df_features: pd.DataFrame, df_prices: pd.DataFrame, drop_na_targets: bool = True) -> tuple[pd.DataFrame, pd.DataFrame]:
         """
-        Takes the feature matrix, calculates the t+1 targets, and returns cleanly isolated X and y dataframes.
+        Takes the feature matrix and price history, calculates t+1 targets, 
+        and returns cleanly isolated and aligned X and y dataframes.
         """
-        df = df.copy()
-        
-        if 'Close' not in df.columns:
-            raise ValueError("Feature matrix must contain 'Close' price to compute targets.")
+        if 'Close' not in df_prices.columns:
+            raise ValueError("Price dataframe must contain 'Close' price to compute future targets.")
             
+        close = df_prices['Close'].reindex(df_features.index)
+        
         # Target Calculation
         # shift(-1) moves tomorrow's close onto today's row to compute the future return
-        next_day_return = df['Close'].shift(-1) / df['Close'] - 1
+        next_day_return = close.shift(-1) / close - 1
         
-        y = pd.DataFrame(index=df.index)
+        y = pd.DataFrame(index=df_features.index)
         y['Next_Day_Return'] = next_day_return
         y['Target_Direction'] = (next_day_return > 0).astype(int)
         y['Target_Risk'] = (next_day_return <= self.risk_threshold).astype(int)
         
-        # The very last row lacks a tomorrow, resulting in NaN return. 
-        # For historical training/eval, we must drop it.
+        X = df_features.copy()
+        
+        # The very last row lacks a tomorrow, resulting in NaN return.
         if drop_na_targets:
-            valid_idx = y['Next_Day_Return'].notna()
-            df = df.loc[valid_idx]
+            valid_idx = y['Next_Day_Return'].notna() & X.notna().all(axis=1)
+            X = X.loc[valid_idx]
             y = y.loc[valid_idx]
             
-        X = df.copy()
-        
         # Validation 1: Leakage check
         forbidden_cols = ['Next_Day_Return', 'Target_Direction', 'Target_Risk']
         leakage = [col for col in forbidden_cols if col in X.columns]

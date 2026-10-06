@@ -32,12 +32,14 @@ class Backtester:
         
         preds = pd.read_csv(pred_path, index_col=0, parse_dates=True)
         
-        # Load original raw/feature data to get precise price movements
-        features_path = self.project_root / self.config['data'].get('processed_dir', 'data/processed') / f"{ticker}_features.csv"
-        features = pd.read_csv(features_path, index_col=0, parse_dates=True)
+        # Load original raw price data to get precise price movements
+        raw_dir = self.project_root / self.config['data'].get('raw_dir', 'data/raw')
+        files_10y = list(raw_dir.glob(f"{ticker}_10y.csv"))
+        price_file = files_10y[0] if files_10y else sorted(list(raw_dir.glob(f"{ticker}_*.csv")))[-1]
+        raw_prices = pd.read_csv(price_file, index_col=0, parse_dates=True).sort_index()
         
         # Align indexes perfectly
-        df = preds.join(features[['Close']], how='inner')
+        df = preds.join(raw_prices[['Close']], how='inner')
         
         # Next Day Return = (Close[t+1] / Close[t]) - 1
         # Since we are predicting at Close of T for T+1, we shift Close back by -1 to calculate the return

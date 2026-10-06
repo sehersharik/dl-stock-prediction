@@ -12,16 +12,26 @@ from src.evaluation.splitter import TimeSeriesSplitter
 
 logger = logging.getLogger(__name__)
 
+# Market context tickers required by the stationary feature pipeline
+CONTEXT_TICKERS = {
+    "nifty": "^NSEI",
+    "vix": "^INDIAVIX"
+}
+
 class InferenceEngine:
     def __init__(self, config: dict, provider: LiveDataProvider, project_root: Path):
         self.config = config
         self.provider = provider
         self.project_root = project_root
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
+        self.device = torch.device(
+            'cuda' if torch.cuda.is_available()
+            else 'mps' if torch.backends.mps.is_available()
+            else 'cpu'
+        )
         
         self.feature_gen = FeatureGenerator(self.config)
-        self.model_version = "v1.0.0"
-        self.feature_version = "v1.0.0"
+        self.model_version = "v2.0.0"   # 10y stationary pipeline
+        self.feature_version = "v2.0.0"
         
     def _load_artifacts(self, ticker: str, model_name: str):
         models_dir = self.project_root / 'models'
@@ -38,27 +48,59 @@ class InferenceEngine:
         self.scaler = StandardScaler()
         self.scaler.fit(X_train)
         
-        # Load rolling buffer for live feature calculations using live provider
+        # Fetch live lookback data for the target ticker (needs 2y for SMA_200 warmup)
         try:
-            self.history_buffer = self.provider.get_lookback_data(ticker, lookback_days=250)
+            self.history_buffer = self.provider.get_lookback_data(ticker, lookback_days=260)
+            logger.info(f"Fetched live lookback for {ticker}: {len(self.history_buffer)} rows")
         except Exception as e:
             logger.error(f"Failed to fetch live lookback data. Falling back to local CSV: {e}")
             raw_dir = self.project_root / self.config['data'].get('raw_dir', 'data/raw')
-            files = list(raw_dir.glob(f"{ticker}_*.csv"))
-            if not files:
-                raise FileNotFoundError("Raw historical data needed for feature warm-up.")
-            latest_file = sorted(files)[-1]
-            self.history_buffer = pd.read_csv(latest_file, index_col=0, parse_dates=True).tail(250)
+            # Prefer 10y file, fall back to any available file
+            preferred = raw_dir / f"{ticker}_10y.csv"
+            if preferred.exists():
+                self.history_buffer = pd.read_csv(preferred, index_col=0, parse_dates=True)
+            else:
+                files = sorted(raw_dir.glob(f"{ticker}_*.csv"))
+                if not files:
+                    raise FileNotFoundError("Raw historical data needed for feature warm-up.")
+                self.history_buffer = pd.read_csv(files[-1], index_col=0, parse_dates=True)
         
-        # Load Direction Model
+        # Fetch live NIFTY and VIX context data
+        try:
+            self.context_buffers = self.provider.get_context_data(CONTEXT_TICKERS, lookback_days=260)
+            logger.info(f"Fetched context data for: {list(self.context_buffers.keys())}")
+        except Exception as e:
+            logger.warning(f"Failed to fetch live context data. Falling back to local CSVs: {e}")
+            self.context_buffers = self._load_local_context()
+        
+        if not self.context_buffers:
+            logger.warning("Context data unavailable — NIFTY/VIX features will be NaN in live inference.")
+        
+        # Load Direction Model — use config-driven layers matching training
         dl_cfg = self.config['models'].get('deep_learning', {})
-        layers = dl_cfg.get('layers', [128, 64, 32])
-        dropout = dl_cfg.get('dropout', 0.3)
+        layers = dl_cfg.get('layers', [32, 16])
+        dropout = dl_cfg.get('dropout', 0.2)
         
-        self.direction_model = ConfigurableMLP(input_dim=len(self.expected_features), layer_dims=layers, dropout=dropout).to(self.device)
+        self.direction_model = ConfigurableMLP(
+            input_dim=len(self.expected_features),
+            layer_dims=layers,
+            dropout=dropout
+        ).to(self.device)
         model_path = models_dir / f"{ticker}_{model_name}_Target_Direction.pt"
         self.direction_model.load_state_dict(torch.load(model_path, map_location=self.device))
         self.direction_model.eval()
+
+    def _load_local_context(self) -> dict:
+        """Fall back to locally-saved 10y CSVs for context features."""
+        raw_dir = self.project_root / self.config['data'].get('raw_dir', 'data/raw')
+        context = {}
+        mappings = {"nifty": "NSEI_10y.csv", "vix": "INDIAVIX_10y.csv"}
+        for key, fname in mappings.items():
+            fpath = raw_dir / fname
+            if fpath.exists():
+                context[key] = pd.read_csv(fpath, index_col=0, parse_dates=True)
+                logger.info(f"Loaded local context fallback: {fname} ({len(context[key])} rows)")
+        return context
 
     def run_live_inference(self, ticker: str, model_name: str):
         """Executes a single live inference tick with strict validation."""
@@ -76,31 +118,38 @@ class InferenceEngine:
             if status == 'Stale/Delayed':
                 logger.warning('Data is stale/delayed. Proceeding with latest available trading session.')
                 
-            # 2. Update Feature Calculations
+            # 2. Update history buffer with latest row
             self.history_buffer.loc[timestamp] = [
                 live_data['Open'], live_data['High'], live_data['Low'], 
                 live_data['Close'], live_data['Volume']
             ]
-            self.history_buffer = self.history_buffer.tail(250)
             
+            # 3. Generate stationary features with NIFTY/VIX context
             logging.getLogger('src.features.generator').setLevel(logging.WARNING)
-            features_df = self.feature_gen.generate(self.history_buffer, context_dfs={})
+            features_df = self.feature_gen.generate(self.history_buffer, context_dfs=self.context_buffers)
             latest_features = features_df.iloc[[-1]]
             
             # Validation: Required features exist & Correct Order
             missing_cols = set(self.expected_features) - set(latest_features.columns)
             if missing_cols:
                 logger.error(f"Prediction unavailable — missing features: {missing_cols}")
-                return {"status": "Error", "message": f"Prediction unavailable: live feature schema does not match the trained model. Missing: {missing_cols}"}
+                return {
+                    "status": "Error",
+                    "message": f"Prediction unavailable: live feature schema does not match the trained model. Missing: {missing_cols}"
+                }
                 
             latest_features = latest_features[self.expected_features]
             
             # Validation: No NaNs
             if latest_features.isnull().values.any():
-                logger.error("Prediction unavailable — NaN values detected in live features.")
-                return {"status": "Error", "message": "Prediction unavailable: NaN values detected in live features."}
+                nan_cols = latest_features.columns[latest_features.isnull().any()].tolist()
+                logger.error(f"Prediction unavailable — NaN values in: {nan_cols}")
+                return {
+                    "status": "Error",
+                    "message": f"Prediction unavailable: NaN values detected in features: {nan_cols}"
+                }
                 
-            # 3 & 4. Construct input & Apply Exact Preprocessing
+            # 4. Apply exact preprocessing (same scaler fitted on training split)
             scaled_features = self.scaler.transform(latest_features)
             
             # Validation: Correct Model Input Shape
@@ -108,7 +157,7 @@ class InferenceEngine:
                 logger.error("Prediction unavailable — incorrect feature shape.")
                 return {"status": "Error", "message": "Prediction unavailable: incorrect feature shape."}
                 
-            # 5. Load and Produce Prediction
+            # 5. Produce Prediction
             x_tensor = torch.FloatTensor(scaled_features).to(self.device)
             with torch.no_grad():
                 dir_logits = self.direction_model(x_tensor)
@@ -116,7 +165,7 @@ class InferenceEngine:
                 
             direction = "UP" if dir_prob >= 0.5 else "DOWN/CASH"
             
-            # 6. Logging strict output (No credentials)
+            # 6. Structured logging (no credentials)
             logger.info(f"--- LIVE PREDICTION ---")
             logger.info(f"Timestamp: {timestamp}")
             logger.info(f"Ticker: {ticker}")
@@ -124,8 +173,6 @@ class InferenceEngine:
             logger.info(f"Feature Version: {self.feature_version}")
             logger.info(f"Direction Probability: {dir_prob:.4f}")
             logger.info(f"Predicted Direction: {direction}")
-            logger.info(f"Risk Probability: N/A (Model not deployed)")
-            logger.info(f"Risk Category: N/A (Model not deployed)")
             
             return {
                 "timestamp": timestamp,
@@ -148,4 +195,3 @@ class InferenceEngine:
         except Exception as e:
             logger.error(f"Live inference failed: {e}")
             return {"status": "Error", "message": str(e)}
-

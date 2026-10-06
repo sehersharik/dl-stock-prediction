@@ -26,7 +26,11 @@ models:
   baseline:
     type: "xgboost"
   deep_learning:
-    type: "lstm"
-    epochs: 100
+    type: "mlp"
+    layers: [32, 16]
+    dropout: 0.2
+    use_batch_norm: false
+    epochs: 60
     batch_size: 64
     learning_rate: 0.001
+    weight_decay: 0.001

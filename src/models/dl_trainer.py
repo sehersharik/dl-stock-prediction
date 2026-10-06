@@ -108,10 +108,11 @@ class DLTrainer:
         
         dl_cfg = self.config['models'].get('deep_learning', {})
         batch_size = dl_cfg.get('batch_size', 64)
-        layers = dl_cfg.get('layers', [128, 64, 32])
-        dropout = dl_cfg.get('dropout', 0.3)
+        layers = dl_cfg.get('layers', [32, 16])
+        dropout = dl_cfg.get('dropout', 0.2)
         lr = dl_cfg.get('learning_rate', 0.001)
-        epochs = dl_cfg.get('epochs', 100)
+        weight_decay = dl_cfg.get('weight_decay', 1e-3)
+        epochs = dl_cfg.get('epochs', 60)
         patience = dl_cfg.get('early_stopping_patience', 10)
         
         def make_loader(X_df, y_df, shuffle=False):
@@ -127,9 +128,9 @@ class DLTrainer:
         num_neg = len(y_train) - num_pos
         pos_weight = torch.tensor([num_neg / max(num_pos, 1)], dtype=torch.float32).to(self.device)
         
-        model = ConfigurableMLP(input_dim=X_train.shape[1], layer_dims=layers, dropout=dropout).to(self.device)
+        model = ConfigurableMLP(input_dim=X_train.shape[1], layer_dims=layers, dropout=dropout, use_batch_norm=False).to(self.device)
         criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
         
         history = {'train_loss': [], 'val_loss': [], 'train_acc': [], 'val_acc': []}
@@ -245,11 +246,12 @@ class DLTrainer:
         val_loader = make_loader(X_val, y_val)
         test_loader = make_loader(X_test, y_test)
         
-        lstm_dims = dl_cfg.get('lstm_dims', [64, 32])
+        lstm_dims = dl_cfg.get('lstm_dims', [32, 16])
         dense_dims = dl_cfg.get('dense_dims', [16])
-        dropout = dl_cfg.get('dropout', 0.3)
+        dropout = dl_cfg.get('dropout', 0.2)
         lr = dl_cfg.get('learning_rate', 0.001)
-        epochs = dl_cfg.get('epochs', 100)
+        weight_decay = dl_cfg.get('weight_decay', 1e-3)
+        epochs = dl_cfg.get('epochs', 50)
         patience = dl_cfg.get('early_stopping_patience', 10)
         
         model = ConfigurableLSTM(input_dim=X_train.shape[2], lstm_dims=lstm_dims, dense_dims=dense_dims, dropout=dropout).to(self.device)
@@ -258,7 +260,7 @@ class DLTrainer:
         num_neg = len(y_train) - num_pos
         pos_weight = torch.tensor([num_neg / max(num_pos, 1)], dtype=torch.float32).to(self.device)
         criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
         
         history = {'train_loss': [], 'val_loss': [], 'train_acc': [], 'val_acc': []}

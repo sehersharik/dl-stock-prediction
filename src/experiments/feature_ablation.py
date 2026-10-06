@@ -9,19 +9,19 @@ from src.models.dl_trainer import DLTrainer
 
 logger = logging.getLogger(__name__)
 
-# Define the logical groupings based on our feature generation logic
+# Define logical groupings based on stationary feature generation logic
 F_GROUPS = {
-    "F0_Raw": ["Close", "High", "Low", "Open", "Volume", "Returns"],
-    "Trend": ["SMA_20", "SMA_50", "SMA_200", "EMA_12", "EMA_26", "EMA_50"],
-    "Momentum": ["RSI_14", "MACD", "MACD_Signal", "MACD_Hist", "ROC", "Momentum"],
-    "Volatility": ["ATR", "Rolling_Vol", "BB_Upper", "BB_Middle", "BB_Lower", "BB_Width"],
-    "Volume": ["Vol_Change", "Vol_SMA_20", "Vol_Ratio", "OBV"],
-    "Context": ["NIFTY_Return", "NIFTY_Vol", "India_VIX"] # (If they exist)
+    "F0_Base": ["Return_1d", "Return_5d", "Return_10d", "Return_20d", "HL_Spread", "CO_Spread"],
+    "Trend": ["Dist_SMA20", "Dist_SMA50", "Dist_SMA200", "SMA20_50_Ratio", "SMA50_200_Ratio"],
+    "Momentum": ["RSI_14", "MACD_Ratio", "MACD_Hist_Ratio", "ROC_12"],
+    "Volatility": ["ATR_Ratio", "Rolling_Vol_20", "BB_PctB", "BB_Width"],
+    "Volume": ["Vol_Change", "Vol_Ratio_20"],
+    "Context": ["NIFTY_Return_1d", "NIFTY_Return_5d", "NIFTY_Vol_20", "NIFTY_Dist_SMA50", "VIX_Level", "VIX_Change_1d"]
 }
 
 def get_feature_set(X_cols, level=0):
     """Dynamically build the cumulative feature set while ensuring columns actually exist."""
-    cols = list(F_GROUPS["F0_Raw"])
+    cols = list(F_GROUPS["F0_Base"])
     if level >= 1: cols += F_GROUPS["Trend"]
     if level >= 2: cols += F_GROUPS["Momentum"]
     if level >= 3: cols += F_GROUPS["Volatility"]

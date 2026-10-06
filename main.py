@@ -69,18 +69,37 @@ def main():
         from src.utils.config import PROJECT_ROOT
         from src.features.generator import FeatureGenerator
         
-        logger.info(f"Initializing feature generation for {args.ticker}...")
+        logger.info(f"Initializing stationary feature generation for {args.ticker}...")
         raw_dir = PROJECT_ROOT / config['data'].get('raw_dir', 'data/raw')
         
-        files = list(raw_dir.glob(f"{args.ticker}_*.csv"))
-        if not files:
-            logger.error(f"No raw data found for {args.ticker}. Run ingest first.")
-            return
-        latest_file = sorted(files)[-1]
+        # Prefer 10y dataset if available
+        files_10y = list(raw_dir.glob(f"{args.ticker}_10y.csv"))
+        if files_10y:
+            chosen_file = files_10y[0]
+        else:
+            files = list(raw_dir.glob(f"{args.ticker}_*.csv"))
+            if not files:
+                logger.error(f"No raw data found for {args.ticker}. Run ingest first.")
+                return
+            chosen_file = sorted(files)[-1]
+            
+        logger.info(f"Using raw data source: {chosen_file.name}")
+        df = pd.read_csv(chosen_file, index_col=0, parse_dates=True).sort_index()
         
-        df = pd.read_csv(latest_file, index_col=0, parse_dates=True)
+        # Load real Market Context data (NIFTY & VIX)
+        context_dfs = {}
+        nifty_files = list(raw_dir.glob("*NSEI*.csv"))
+        if nifty_files:
+            context_dfs['NIFTY'] = pd.read_csv(nifty_files[0], index_col=0, parse_dates=True).sort_index()
+            logger.info(f"Loaded NIFTY context: {nifty_files[0].name}")
+            
+        vix_files = list(raw_dir.glob("*VIX*.csv"))
+        if vix_files:
+            context_dfs['VIX'] = pd.read_csv(vix_files[0], index_col=0, parse_dates=True).sort_index()
+            logger.info(f"Loaded India VIX context: {vix_files[0].name}")
+            
         generator = FeatureGenerator(config)
-        df_features = generator.generate(df, context_dfs={})
+        df_features = generator.generate(df, context_dfs=context_dfs)
         
         proc_dir = PROJECT_ROOT / config['data'].get('processed_dir', 'data/processed')
         proc_dir.mkdir(parents=True, exist_ok=True)
@@ -93,6 +112,7 @@ def main():
         from src.targets.generator import TargetGenerator
         
         logger.info(f"Initializing target generation for {args.ticker}...")
+        raw_dir = PROJECT_ROOT / config['data'].get('raw_dir', 'data/raw')
         proc_dir = PROJECT_ROOT / config['data'].get('processed_dir', 'data/processed')
         feature_path = proc_dir / f"{args.ticker}_features.csv"
         
@@ -100,10 +120,15 @@ def main():
             logger.error(f"Features file not found at {feature_path}. Run features first.")
             return
             
+        # Load raw price data to calculate true future returns
+        files_10y = list(raw_dir.glob(f"{args.ticker}_10y.csv"))
+        chosen_file = files_10y[0] if files_10y else sorted(list(raw_dir.glob(f"{args.ticker}_*.csv")))[-1]
+        df_prices = pd.read_csv(chosen_file, index_col=0, parse_dates=True).sort_index()
+        
         df_features = pd.read_csv(feature_path, index_col=0, parse_dates=True)
         generator = TargetGenerator(config)
         
-        X, y = generator.generate(df_features, drop_na_targets=True)
+        X, y = generator.generate(df_features, df_prices, drop_na_targets=True)
         
         X.to_csv(proc_dir / f"{args.ticker}_X.csv")
         y.to_csv(proc_dir / f"{args.ticker}_y.csv")
@@ -161,8 +186,8 @@ def main():
         device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
         
         dl_cfg = config["models"].get("deep_learning", {})
-        layers = dl_cfg.get("layers", [128, 64, 32])
-        dropout = dl_cfg.get("dropout", 0.3)
+        layers = dl_cfg.get("layers", [32, 16])
+        dropout = dl_cfg.get("dropout", 0.2)
         
         model = ConfigurableMLP(input_dim=X.shape[1], layer_dims=layers, dropout=dropout).to(device)
         model_path = models_dir / f"{args.ticker}_{args.model}_Target_Direction.pt"

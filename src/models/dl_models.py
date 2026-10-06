@@ -12,8 +12,11 @@ def seed_everything(seed=42):
         torch.backends.cudnn.deterministic = True
 
 class ConfigurableMLP(nn.Module):
-    """A configurable Multi-Layer Perceptron for baseline DL comparison."""
-    def __init__(self, input_dim: int, layer_dims: list, dropout: float = 0.3, use_batch_norm: bool = True):
+    """
+    A regularized, compact Multi-Layer Perceptron designed for noisy financial time-series.
+    Defaults to use_batch_norm=False to prevent batch statistics degradation on small financial sample sizes.
+    """
+    def __init__(self, input_dim: int, layer_dims: list = [32, 16], dropout: float = 0.2, use_batch_norm: bool = False):
         super(ConfigurableMLP, self).__init__()
         
         layers = []
@@ -28,7 +31,7 @@ class ConfigurableMLP(nn.Module):
                 layers.append(nn.Dropout(dropout))
             in_dim = out_dim
             
-        # Output layer strictly returns raw logits (BCEWithLogitsLoss handles sigmoid)
+        # Final output logit
         layers.append(nn.Linear(in_dim, 1))
         
         self.network = nn.Sequential(*layers)
@@ -38,17 +41,10 @@ class ConfigurableMLP(nn.Module):
 
 class ConfigurableLSTM(nn.Module):
     """
-    Long Short-Term Memory (LSTM) baseline for sequential financial modeling.
-    
-    Why LSTM is appropriate for sequential market data:
-    Unlike tabular models (MLP, XGBoost) which treat daily observations as independent 
-    events, LSTMs explicitly model the temporal progression of the market.
-    Financial markets exhibit memory (e.g., momentum continuation, volatility clustering, 
-    and mean-reversion). The LSTM's cell state allows it to "remember" conditions from 
-    several days ago (like a sudden volume spike or a multi-day moving average crossover)
-    and use that context to interpret today's price action before predicting tomorrow's risk.
+    Long Short-Term Memory (LSTM) for sequential financial modeling.
+    Uses compact dimensional sizing [32, 16] to prevent parameter explosion.
     """
-    def __init__(self, input_dim: int, lstm_dims: list = [64, 32], dense_dims: list = [16], dropout: float = 0.3):
+    def __init__(self, input_dim: int, lstm_dims: list = [32, 16], dense_dims: list = [16], dropout: float = 0.2):
         super(ConfigurableLSTM, self).__init__()
         
         self.lstm_layers = nn.ModuleList()
@@ -70,17 +66,15 @@ class ConfigurableLSTM(nn.Module):
                 dense_layers.append(nn.Dropout(dropout))
             in_size = d_size
             
-        # Final output layer (logits)
+        # Final output logit
         dense_layers.append(nn.Linear(in_size, 1))
         self.fc = nn.Sequential(*dense_layers)
         
     def forward(self, x):
-        # x shape: (batch, seq_len, features)
         out = x
         for lstm in self.lstm_layers:
             out, (hn, cn) = lstm(out)
             out = self.dropout(out)
             
-        # Take the output of the last time step
         last_time_step = out[:, -1, :]
         return self.fc(last_time_step)

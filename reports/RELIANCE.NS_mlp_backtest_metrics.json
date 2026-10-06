@@ -1,15 +1,15 @@
 {
-    "Days_Tested": 43,
-    "Strategy_Total_Return": 0.019381408389855137,
-    "Strategy_Annualized": 0.11906932135778425,
-    "Strategy_Volatility": 0.08057329364927232,
-    "Strategy_Sharpe": 1.4358417078507106,
-    "Strategy_Max_Drawdown": -0.02335742246162868,
-    "BnH_Total_Return": 0.15394511116380727,
-    "BnH_Annualized": 1.3143759700691038,
-    "BnH_Volatility": 0.13781944769718302,
-    "BnH_Sharpe": 6.166014691940171,
-    "BnH_Max_Drawdown": -0.015054389566841,
-    "Win_Rate": 0.7272727272727273,
-    "Total_Trades": 14
+    "Days_Tested": 283,
+    "Strategy_Total_Return": 0.23800459450619815,
+    "Strategy_Annualized": 0.20938729391603172,
+    "Strategy_Volatility": 0.13770891936384302,
+    "Strategy_Sharpe": 1.4491741270393708,
+    "Strategy_Max_Drawdown": -0.05272220301768741,
+    "BnH_Total_Return": 0.05129848348249988,
+    "BnH_Annualized": 0.04555324421838769,
+    "BnH_Volatility": 0.22413784520434835,
+    "BnH_Sharpe": 0.3109502484862775,
+    "BnH_Max_Drawdown": -0.18896742902343644,
+    "Win_Rate": 0.5537190082644629,
+    "Total_Trades": 64
 }

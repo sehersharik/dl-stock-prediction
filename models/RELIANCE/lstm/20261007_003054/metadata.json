@@ -1,0 +1,64 @@
+{
+    "run_id": "20261007_003054",
+    "model_type": "lstm",
+    "ticker": "RELIANCE.NS",
+    "target": "Target_Direction",
+    "feature_set": "Count: 15",
+    "feature_list": [
+        "Return_1d",
+        "Return_5d",
+        "Return_10d",
+        "Return_20d",
+        "HL_Spread",
+        "CO_Spread",
+        "Dist_SMA20",
+        "Dist_SMA50",
+        "Dist_SMA200",
+        "SMA20_50_Ratio",
+        "SMA50_200_Ratio",
+        "RSI_14",
+        "MACD_Ratio",
+        "MACD_Hist_Ratio",
+        "ROC_12"
+    ],
+    "training_date": "2026-10-07T00:30:57.201793",
+    "training_period": [],
+    "validation_period": [],
+    "test_period": [],
+    "sequence_length": 30,
+    "scaler_path": "/Users/sehersharik/.gemini/antigravity/scratch/dl-stock-prediction/models/RELIANCE/lstm/20261007_003054/scaler.joblib",
+    "random_seed": 42,
+    "hyperparameters": {
+        "type": "mlp",
+        "layers": [
+            32,
+            16
+        ],
+        "dropout": 0.2,
+        "use_batch_norm": false,
+        "epochs": 60,
+        "batch_size": 64,
+        "learning_rate": 0.001,
+        "weight_decay": 0.001
+    },
+    "metrics": {
+        "Accuracy": 0.4788732394366197,
+        "Balanced Accuracy": 0.47887323943661975,
+        "Precision": 0.48404255319148937,
+        "Recall": 0.6408450704225352,
+        "F1": 0.5515151515151515,
+        "Confusion Matrix": [
+            [
+                45,
+                97
+            ],
+            [
+                51,
+                91
+            ]
+        ],
+        "ROC-AUC": 0.45878793890101177,
+        "PR-AUC": 0.4921464622930477
+    },
+    "git_commit": "59c26d8ba2ff74a18af69b8c5e8e7825695ae94d"
+}
