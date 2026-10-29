@@ -257,11 +257,8 @@ Computed by shuffling each feature column on the test set and measuring the drop
 ## Vectorized Backtesting Protocol & Execution Engine
 
 ### Protocol & Rules
-- **Out-of-Sample Test Period:** {{n_test}} trading days ({{test_start}} to {{test_end}})
 - **Initial Capital:** ₹100,000
-- **Signal Threshold:** $\text{Probability} \ge 0.50 \implies \text{LONG (1)}$, else $\text{CASH (0)}$
-- **Friction Modeling:** {{default_cost_parts}} (Total friction: **{{default_cost}} per position change**)
-- **Execution Timing:** Decision made at Close $T$ using features through $T$; return realized from Close $T$ to Close $T+1$.
+{{backtest_rules}}
 
 ---
 

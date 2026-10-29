@@ -40,6 +40,8 @@ def main():
     backtest_parser.add_argument("--ticker", required=True, help="Ticker symbol to process")
     backtest_parser.add_argument("--model", required=True, choices=["majority", "logistic", "random_forest", "xgboost", "mlp", "lstm"], help="Model predictions to backtest")
     backtest_parser.add_argument("--threshold", type=float, default=0.5, help="Probability threshold for long entry")
+    backtest_parser.add_argument("--execution", choices=["next_open", "close_to_close"], default="next_open",
+                                 help="next_open: fill at the next session's open (executable); close_to_close: fill at the signal close")
     explain_parser = subparsers.add_parser("explain", help="Run model explainability (Permutation/SHAP)")
     explain_parser.add_argument("--ticker", required=True, help="Ticker symbol to process")
     explain_parser.add_argument("--model", required=True, choices=["mlp"], help="Model to explain")
@@ -244,7 +246,7 @@ def main():
         logger.info(f"Initializing Backtester for {args.ticker} {args.model.upper()}...")
         try:
             bt = Backtester(config, PROJECT_ROOT)
-            bt.run(args.ticker, args.model, target_col="Target_Direction", threshold=args.threshold)
+            bt.run(args.ticker, args.model, target_col="Target_Direction", threshold=args.threshold, execution=args.execution)
             logger.info("Backtest execution completed. View reports/ for equity curve.")
         except Exception as e:
             import traceback

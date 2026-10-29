@@ -122,3 +122,52 @@ The ablation now trains the MLP on F0…F5 and compares **validation** ROC-AUC o
 The headline number fell by about 0.03 ROC-AUC. The new score sits close to the validation score (0.547), while the old one was well *above* its validation score (0.539). That's the pattern you'd expect when a test number has been used to make choices, or was simply a lucky sample. Random Forest (0.532) and XGBoost (0.513) are close behind on test, and both beat the MLP on validation.
 
 *Interview soundbite:* "When I cleaned the data and stopped using the test set for decisions, the headline ROC-AUC dropped from 0.568 to 0.536. I'd rather report the smaller honest number, which is close to chance and close to simple baselines, than the bigger one I can't defend."
+
+---
+
+## Phase 4: Auditing the backtest
+
+### What a backtest has to get right
+A backtest answers one question: "If I had followed the model's signals, with realistic trading, would I have done better than just holding the stock?" Four things decide whether the answer is honest:
+1. **Timing:** you can only trade *after* you know the signal.
+2. **Return period:** each signal earns exactly the next period's return, no more.
+3. **Costs:** every buy and every sell costs money.
+4. **Benchmark:** compare against buy-and-hold over *exactly the same days*.
+
+### Bug: "next row" is not "next day"
+This is the same bug as Phase 3's targets. The old engine took the next *prediction row's* close as "tomorrow". Around the data gaps, "tomorrow" was up to 88 sessions later. A single "stay in cash" signal on 2026-01-14 was credited with dodging a −6.1% move that happened over 50 sessions. It also distorted buy-and-hold, which showed +5.1% when the same days actually gave +16.4%. The fix computes returns on the trading calendar first, then lines them up with the predictions.
+
+### Two execution assumptions
+- **Close-to-close (optimistic):** the signal is computed from today's close, and you trade *at* that same close. In practice you can't, because the close is only known once trading has finished.
+- **Next open (executable, now the headline):** you place the order after the close and get filled at tomorrow's open, holding until the following open.
+
+The model was trained to predict close-to-close moves. If its edge disappears at the next open, the signal isn't tradeable.
+
+### Costs, stated precisely
+0.15% **per side** (0.10% brokerage/fees + 0.05% slippage), charged on every entry and every exit, including closing the position at the end. A round trip costs 0.30%. Buy-and-hold pays one entry and one exit too.
+
+### Sharpe ratio and the risk-free rate
+Sharpe = average *excess* daily return over the risk-free rate, divided by its volatility, ×√252. I used a constant **6.0% a year**. That's an *assumption* approximating the RBI 91-day Treasury-bill yield over the test period (auction cut-offs roughly 5.5–6.7%). I couldn't get a verified monthly series, so Sharpe is also reported at 0%, 5% and 7%. The conclusion is the same at every rate.
+
+### Two win rates
+- **Per day:** share of in-market days that made money.
+- **Per trade:** share of complete round trips (entry → exit, after both costs) that made money. This is what a trader experiences. A trade can have more winning days than losing ones and still lose money after a 0.30% round-trip cost.
+
+### Results (new model, 419 test days, 0.15% per side)
+| | Next open (headline) | Close-to-close |
+|---|---|---|
+| Strategy | **−17.1%** | −6.5% |
+| Buy & hold, same days | −1.4% | −0.8% |
+| Sharpe (rf 6%) | −1.11 vs −0.16 | −0.73 vs −0.20 |
+| Win rate per trade / per day | 32.8% / 43.4% | 31.1% / 48.0% |
+| Trades / costs paid | 61 / 18.3% of capital | 61 / 18.3% |
+
+**Where the loss comes from:** with *zero* costs and close-to-close execution, the strategy made +12.3% against −0.5%, so there is some gross signal in the optimistic setting. Two things remove it:
+1. **Costs.** 61 round trips at 0.30% each cost about 18% of capital.
+2. **Execution timing.** At the next open, even the zero-cost strategy only breaks even (−0.4% vs −1.1%). The overnight move from close to open carries much of what the model "knew".
+
+### Why the old +23.8% looked so good
+Re-running the old model's predictions through the fixed engine gives +18.9% vs +16.4% (close-to-close) and +14.8% vs +15.7% (next open). The old headline compared an inflated strategy return against a buy-and-hold figure the bug had pushed down. And those numbers only covered 283 of 425 sessions.
+
+### Interview soundbite
+"After fixing the backtest and using realistic execution and costs, the strategy lost 17% while buy-and-hold lost 1.4% over the same days. The model has a little gross signal close-to-close, but it trades too often (73× turnover a year) and the edge doesn't survive to the next day's open. That's a negative result, and it's the most useful finding in the project: classification accuracy just above 50% doesn't turn into a profitable daily strategy once costs and timing are real."

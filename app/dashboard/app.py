@@ -298,9 +298,7 @@ def load_backend_data():
     run = {"run_id": metrics_doc["active_run"], **metrics_doc["runs"][metrics_doc["active_run"]]}
     data['run'] = run
     data['model_metrics'] = run['metrics']['mlp']['test']
-    bt = run.get('backtest')
-    data['backtest'] = bt
-    data['backtest_metrics'] = bt['cost_grid'][bt['default_index']] if bt else {}
+    data['backtest'] = run.get('backtest')
 
     artifacts = run['artifacts']
     def _artifact(key, reader):
@@ -308,7 +306,6 @@ def load_backend_data():
         return reader(path) if path is not None and path.exists() else None
 
     data['test_preds'] = _artifact('test_preds', lambda p: pd.read_csv(p, index_col=0, parse_dates=True))
-    data['backtest_curve'] = _artifact('backtest_curve', lambda p: pd.read_csv(p, index_col=0, parse_dates=True))
     data['explainability'] = _artifact('perm_importance', pd.read_csv)
 
     return data
@@ -755,31 +752,36 @@ with tab_overview:
     if not bt:
         st.info(f"The historical backtest for run {run['run_id']} has not been produced yet, so no strategy results are shown.")
     else:
-        bt_metrics = backend_data['backtest_metrics']
-        bt_curve = backend_data.get('backtest_curve')
-        st.markdown(f'<div class="section-subheading">Vectorized simulation on held-out test data ({test_years}), including {bt_metrics["transaction_cost"]:.2%} transaction cost + {bt_metrics["slippage"]:.2%} slippage per position change.</div>', unsafe_allow_html=True)
+        head_ex = bt['headline_execution']
+        bt_metrics = bt['variants'][head_ex]
+        curve_path = PROJECT_ROOT / bt['curves'][head_ex]
+        bt_curve = pd.read_csv(curve_path, index_col=0, parse_dates=True) if curve_path.exists() else None
+        st.markdown(
+            f'<div class="section-subheading">Long/cash simulation on held-out test data ({test_years}). '
+            f'Signal at the close; <strong>{bt_metrics["Execution_Rule"]}</strong>. '
+            f'Cost {bt["cost_per_side"]:.2%} per side (every entry and exit). Sharpe uses a '
+            f'{bt["risk_free_rate_annual"]:.1%} risk-free rate (assumption: RBI 91-day T-bill level). '
+            f'Buy &amp; hold is measured over exactly the same {bt_metrics["Days_Tested"]} periods.</div>',
+            unsafe_allow_html=True)
 
         strat_ret = bt_metrics['Strategy_Total_Return']
         bnh_ret = bt_metrics['BnH_Total_Return']
-        sharpe_ratio = bt_metrics['Strategy_Sharpe']
-        max_dd = bt_metrics['Strategy_Max_Drawdown']
-        trades_count = bt_metrics['Total_Trades']
-        win_rate = bt_metrics['Win_Rate']
+        ret_color = "#16A34A" if strat_ret >= 0 else "#DC2626"
 
         col_b1, col_b2, col_b3, col_b4, col_b5, col_b6 = st.columns(6)
 
         with col_b1:
-            st.markdown(f'<div class="stat-tile"><div class="card-label">STRATEGY RETURN</div><div class="stat-tile-val" style="color:#16A34A;">{strat_ret:+.2%}</div><div class="stat-tile-sub">Simulated model gain</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="stat-tile"><div class="card-label">STRATEGY RETURN</div><div class="stat-tile-val" style="color:{ret_color};">{strat_ret:+.2%}</div><div class="stat-tile-sub">After costs</div></div>', unsafe_allow_html=True)
         with col_b2:
-            st.markdown(f'<div class="stat-tile"><div class="card-label">BUY & HOLD</div><div class="stat-tile-val">{bnh_ret:+.2%}</div><div class="stat-tile-sub">Benchmark return</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="stat-tile"><div class="card-label">BUY & HOLD</div><div class="stat-tile-val">{bnh_ret:+.2%}</div><div class="stat-tile-sub">Same periods, after costs</div></div>', unsafe_allow_html=True)
         with col_b3:
-            st.markdown(f'<div class="stat-tile"><div class="card-label">SHARPE RATIO</div><div class="stat-tile-val">{sharpe_ratio:.2f}</div><div class="stat-tile-sub">Risk-adjusted return</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="stat-tile"><div class="card-label">SHARPE RATIO</div><div class="stat-tile-val">{bt_metrics["Strategy_Sharpe"]:.2f}</div><div class="stat-tile-sub">Buy &amp; hold: {bt_metrics["BnH_Sharpe"]:.2f}</div></div>', unsafe_allow_html=True)
         with col_b4:
-            st.markdown(f'<div class="stat-tile"><div class="card-label">MAX DRAWDOWN</div><div class="stat-tile-val" style="color:#DC2626;">{max_dd:.2%}</div><div class="stat-tile-sub">Peak-to-trough decline</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="stat-tile"><div class="card-label">MAX DRAWDOWN</div><div class="stat-tile-val" style="color:#DC2626;">{bt_metrics["Strategy_Max_Drawdown"]:.2%}</div><div class="stat-tile-sub">Buy &amp; hold: {bt_metrics["BnH_Max_Drawdown"]:.2%}</div></div>', unsafe_allow_html=True)
         with col_b5:
-            st.markdown(f'<div class="stat-tile"><div class="card-label">WIN RATE</div><div class="stat-tile-val">{win_rate:.1%}</div><div class="stat-tile-sub">Profitable in-market days</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="stat-tile"><div class="card-label">WIN RATE</div><div class="stat-tile-val">{bt_metrics["Win_Rate_Trade"]:.1%}</div><div class="stat-tile-sub">Per trade · {bt_metrics["Win_Rate_Day"]:.1%} per day</div></div>', unsafe_allow_html=True)
         with col_b6:
-            st.markdown(f'<div class="stat-tile"><div class="card-label">TOTAL TRADES</div><div class="stat-tile-val">{int(trades_count)}</div><div class="stat-tile-sub">Position changes</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="stat-tile"><div class="card-label">TRADES</div><div class="stat-tile-val">{bt_metrics["Trades"]}</div><div class="stat-tile-sub">{bt_metrics["Position_Changes"]} sides · {bt_metrics["Annual_Turnover"]:.0f}× turnover/yr</div></div>', unsafe_allow_html=True)
 
         if bt_curve is not None and not bt_curve.empty:
             fig_bt = go.Figure()
@@ -789,7 +791,7 @@ with tab_overview:
             ))
             fig_bt.add_trace(go.Scatter(
                 x=bt_curve.index, y=bt_curve['BnH_Equity'],
-                name=f'Buy & Hold Benchmark ({bnh_ret:+.2%})', line=dict(color='#94A3B8', width=1.5, dash='dash')
+                name=f'Buy & Hold, same periods ({bnh_ret:+.2%})', line=dict(color='#94A3B8', width=1.5, dash='dash')
             ))
             fig_bt.update_layout(
                 height=340,
@@ -801,17 +803,36 @@ with tab_overview:
             )
             st.plotly_chart(fig_bt, width='stretch')
 
-        # ── TRANSACTION COST SENSITIVITY TABLE ─────────────────────────────────
-        st.markdown('<div style="font-size: 0.95rem; font-weight: 700; color: #0F172A; margin-top: 1rem;">Transaction Cost Sensitivity (Friction Robustness)</div>', unsafe_allow_html=True)
-        st.markdown(f'<div style="font-size: 0.83rem; color: #64748B; margin-bottom: 0.6rem;">Stress-testing the strategy across {len(bt["cost_grid"])} cost regimes (cost + slippage charged on every position change):</div>', unsafe_allow_html=True)
+        beats = strat_ret > bnh_ret
+        st.markdown(f"""
+        <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 0.9rem 1.1rem; margin-top: 0.5rem; font-size: 0.88rem; color: #475569;">
+          <strong>Plain-English Verdict:</strong> After costs the strategy {"beat" if beats else "did <strong>worse</strong> than"} buy &amp; hold over the same periods
+          ({strat_ret:+.2%} vs {bnh_ret:+.2%}). It made {bt_metrics["Trades"]} round trips, paying {bt_metrics["Total_Cost_Paid"]:.1%} of capital in costs.
+          Reliance's price moved {bt["window_price_return"]:+.2%} over the whole window; the difference from buy &amp; hold comes from
+          {len(bt["sessions_without_prediction"])} sessions with no prediction (gaps in the input data), which both strategies sit out.
+          This is one historical period and does not predict future returns.
+        </div>
+        """, unsafe_allow_html=True)
 
-        sensitivity_df = pd.DataFrame([
-            {"Cost per Position Change": f"{g['cost_per_position_change']:.2%}" + (" (default)" if i == bt['default_index'] else ""),
-             "Strategy Return": f"{g['Strategy_Total_Return']:+.2%}", "Sharpe Ratio": f"{g['Strategy_Sharpe']:.2f}",
-             "Max Drawdown": f"{g['Strategy_Max_Drawdown']:.2%}", "Win Rate (per day)": f"{g['Win_Rate']:.2%}"}
+        # ── EXECUTION VARIANTS & COST SENSITIVITY ─────────────────────────────
+        st.markdown('<div style="font-size: 0.95rem; font-weight: 700; color: #0F172A; margin-top: 1rem;">Execution Assumption</div>', unsafe_allow_html=True)
+        st.dataframe(pd.DataFrame([
+            {"Execution": m["Execution_Rule"] + (" (headline)" if ex == head_ex else ""),
+             "Strategy Return": f"{m['Strategy_Total_Return']:+.2%}", "Buy & Hold": f"{m['BnH_Total_Return']:+.2%}",
+             "Sharpe": f"{m['Strategy_Sharpe']:.2f}", "Max Drawdown": f"{m['Strategy_Max_Drawdown']:.2%}",
+             "Win Rate / Trade": f"{m['Win_Rate_Trade']:.1%}", "Trades": m["Trades"]}
+            for ex, m in bt['variants'].items()
+        ]), width='stretch', hide_index=True)
+
+        st.markdown('<div style="font-size: 0.95rem; font-weight: 700; color: #0F172A; margin-top: 1rem;">Transaction Cost Sensitivity</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-size: 0.83rem; color: #64748B; margin-bottom: 0.6rem;">Headline execution, {len(bt["cost_grid"])} cost levels charged per side:</div>', unsafe_allow_html=True)
+        st.dataframe(pd.DataFrame([
+            {"Cost per Side": f"{g['cost_per_side']:.2%}" + (" (default)" if i == bt['default_index'] else ""),
+             "Strategy Return": f"{g['Strategy_Total_Return']:+.2%}", "Buy & Hold": f"{g['BnH_Total_Return']:+.2%}",
+             "Sharpe": f"{g['Strategy_Sharpe']:.2f}", "Max Drawdown": f"{g['Strategy_Max_Drawdown']:.2%}",
+             "Win Rate / Trade": f"{g['Win_Rate_Trade']:.1%}", "Win Rate / Day": f"{g['Win_Rate_Day']:.1%}"}
             for i, g in enumerate(bt['cost_grid'])
-        ])
-        st.dataframe(sensitivity_df, width='stretch', hide_index=True)
+        ]), width='stretch', hide_index=True)
 
 
 # ==============================================================================

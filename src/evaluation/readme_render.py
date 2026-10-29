@@ -105,50 +105,74 @@ def _perm_block(run):
 def _backtest_blocks(run):
     bt = run.get("backtest")
     if not bt:
-        pending = f"The backtest for run `{run['run_id']}` has not been produced yet (Phase 4)."
-        return {"backtest_table": pending, "sensitivity_table": pending, "winrate_note": "",
-                "header_backtest": "Backtest pending (Phase 4)",
-                "exec_backtest_row": "| **Backtest** | Pending | Not yet produced for this run (Phase 4) |",
-                "default_cost": "n/a", "default_cost_parts": "n/a",
-                "qa_backtest": "The backtest for the current run has not been produced yet (Phase 4)."}
-    d = bt["cost_grid"][bt["default_index"]]
-    exposure = d["In_Market_Days"] / d["Days_Tested"]
-    table = "\n".join([
-        f"| Metric | Model Strategy (MLP {run['model']['layers']}) | Buy & Hold Benchmark |",
-        "|---|---|---|",
-        f"| **Cumulative Total Return** | **{_signed_pct(d['Strategy_Total_Return'])}** | {_signed_pct(d['BnH_Total_Return'])} |",
-        f"| **Annualized Return** | **{_signed_pct(d['Strategy_Annualized'])}** | {_signed_pct(d['BnH_Annualized'])} |",
-        f"| **Annualized Volatility** | **{_pct(d['Strategy_Volatility'])}** | {_pct(d['BnH_Volatility'])} |",
-        f"| **Sharpe Ratio** | **{d['Strategy_Sharpe']:.2f}** | {d['BnH_Sharpe']:.2f} |",
-        f"| **Maximum Drawdown** | **{_pct(d['Strategy_Max_Drawdown'])}** | {_pct(d['BnH_Max_Drawdown'])} |",
-        f"| **Win Rate (per in-market day)** | **{_pct(d['Win_Rate'])}** ({d['Winning_Days']} wins / {d['In_Market_Days']} in-market days) | N/A |",
-        f"| **Position Changes** | **{d['Total_Trades']}** | 1 (Buy at start) |",
-        f"| **Market Exposure** | **{_pct(exposure, 1)}** ({d['In_Market_Days']} long days, {d['Cash_Days']} cash days) | 100.0% |",
-    ])
-    sens = ["| Cost per Position Change | Transaction Cost + Slippage | Cumulative Return | Sharpe Ratio | Max Drawdown | Win Rate (per day) |",
-            "|---|---|---|---|---|---|"]
-    for i, g in enumerate(bt["cost_grid"]):
-        label = f"{_pct(g['cost_per_position_change'])}" + (" (default)" if i == bt["default_index"] else "")
-        sens.append(f"| **{label}** | {_pct(g['transaction_cost'])} + {_pct(g['slippage'])} | {_signed_pct(g['Strategy_Total_Return'])} | "
-                    f"{g['Strategy_Sharpe']:.2f} | {_pct(g['Strategy_Max_Drawdown'])} | {_pct(g['Win_Rate'])} |")
-    zero = next((g for g in bt["cost_grid"] if g["cost_per_position_change"] == 0), None)
-    note = ""
-    if zero is not None:
-        note = (f"> **Why the zero-cost win rate equals the MLP's precision ({_pct(zero['Win_Rate'])}):** win rate here is counted per "
-                f"in-market day. At threshold {bt['threshold']} the strategy is in the market exactly on the days the model "
-                "predicts UP, so with no costs a winning day is the same as a correct UP prediction.")
+        pending = f"The backtest for run `{run['run_id']}` has not been produced yet."
+        return {"backtest_table": pending, "sensitivity_table": pending, "winrate_note": "", "backtest_rules": pending,
+                "header_backtest": "Backtest pending",
+                "exec_backtest_row": "| **Backtest** | Pending | Not yet produced for this run |",
+                "qa_backtest": "The backtest for the current run has not been produced yet."}
+    head_ex = bt["headline_execution"]
+    d = bt["variants"][head_ex]
     ret, bnh = _signed_pct(d["Strategy_Total_Return"]), _signed_pct(d["BnH_Total_Return"])
+    verdict = "beat" if d["Strategy_Total_Return"] > d["BnH_Total_Return"] else "did **worse** than"
+    rules = "\n".join([
+        f"- **Out-of-Sample Test Period:** {d['Days_Tested']} signal days ({d['First_Signal_Date']} to {d['Last_Signal_Date']})",
+        f"- **Signal:** long if $P(\\text{{UP}}) \\ge {bt['threshold']}$, otherwise cash (cash earns nothing)",
+        f"- **Execution (headline):** signal at close $T$; {d['Execution_Rule']}. Also reported: "
+        + "; ".join(m["Execution_Rule"] for ex, m in bt["variants"].items() if ex != head_ex),
+        f"- **Costs:** {_pct(bt['cost_per_side'])} **per side** (every entry and every exit, including closing at the end); a round trip costs {_pct(2 * bt['cost_per_side'])}",
+        f"- **Benchmark:** {bt['benchmark']}",
+        f"- **Sharpe:** excess daily returns over a {_pct(bt['risk_free_rate_annual'], 1)} annual risk-free rate, ×√252. {bt['risk_free_source']}",
+        f"- **Returns** are measured on the trading-session calendar, so each period is exactly one session. "
+        f"{len(bt['sessions_without_prediction'])} sessions in the window have no prediction (input-data gaps) and are skipped by both strategies; "
+        f"Reliance's raw price change over the whole window was {_signed_pct(bt['window_price_return'])}.",
+    ])
+    table = [f"| Metric | Model Strategy ({head_ex.replace('_', '-')}) | Buy & Hold (same periods) |", "|---|---|---|"]
+    for label, key, fmt in [("Total Return (after costs)", "Total_Return", _signed_pct), ("Annualized Return", "Annualized", _signed_pct),
+                            ("Annualized Volatility", "Volatility", _pct), (f"Sharpe (rf {_pct(bt['risk_free_rate_annual'], 1)})", "Sharpe", lambda x: f"{x:.2f}"),
+                            ("Sharpe (rf 0%)", "Sharpe_rf0", lambda x: f"{x:.2f}"), ("Maximum Drawdown", "Max_Drawdown", _pct)]:
+        table.append(f"| **{label}** | **{fmt(d['Strategy_' + key])}** | {fmt(d['BnH_' + key])} |")
+    table += [
+        f"| **Trades (round trips)** | **{d['Trades']}** ({d['Winning_Trades']} winners) | 1 |",
+        f"| **Win Rate per Trade** | **{_pct(d['Win_Rate_Trade'], 1)}** (avg trade {_signed_pct(d['Avg_Trade_Return'])}) | N/A |",
+        f"| **Win Rate per In-Market Day** | **{_pct(d['Win_Rate_Day'], 1)}** ({d['Winning_Days']} / {d['In_Market_Days']} days) | N/A |",
+        f"| **Position Changes / Annual Turnover** | **{d['Position_Changes']}** / {d['Annual_Turnover']:.0f}× capital per year | 2 |",
+        f"| **Total Costs Paid** | **{_pct(d['Total_Cost_Paid'])}** of capital | {_pct(2 * bt['cost_per_side'])} |",
+        f"| **Market Exposure** | **{_pct(d['Exposure'], 1)}** ({d['In_Market_Days']} long / {d['Cash_Days']} cash days) | 100.0% |",
+    ]
+    variants = ["| Execution | Strategy Return | Buy & Hold | Sharpe | Max Drawdown | Win Rate / Trade | Win Rate / Day | Trades |",
+                "|---|---|---|---|---|---|---|---|"]
+    for ex, m in bt["variants"].items():
+        variants.append(f"| {m['Execution_Rule']}{' **(headline)**' if ex == head_ex else ''} | {_signed_pct(m['Strategy_Total_Return'])} | "
+                        f"{_signed_pct(m['BnH_Total_Return'])} | {m['Strategy_Sharpe']:.2f} | {_pct(m['Strategy_Max_Drawdown'])} | "
+                        f"{_pct(m['Win_Rate_Trade'], 1)} | {_pct(m['Win_Rate_Day'], 1)} | {m['Trades']} |")
+    backtest_table = "\n".join(table) + "\n\n### Execution Assumption\n\n" + "\n".join(variants)
+    if "as_reported" in bt:
+        a = bt["as_reported"]
+        backtest_table += (f"\n\n> **Previously reported (superseded):** {_signed_pct(a['Strategy_Total_Return'])} vs "
+                           f"{_signed_pct(a['BnH_Total_Return'])} buy & hold, Sharpe {a['Strategy_Sharpe']:.2f}. {a['note']}")
+    sens = ["| Cost per Side | Transaction Cost + Slippage | Strategy Return | Buy & Hold | Sharpe | Max Drawdown | Win Rate / Trade | Win Rate / Day |",
+            "|---|---|---|---|---|---|---|---|"]
+    for i, g in enumerate(bt["cost_grid"]):
+        label = _pct(g["cost_per_side"]) + (" (default)" if i == bt["default_index"] else "")
+        sens.append(f"| **{label}** | {_pct(g['transaction_cost'])} + {_pct(g['slippage'])} | {_signed_pct(g['Strategy_Total_Return'])} | "
+                    f"{_signed_pct(g['BnH_Total_Return'])} | {g['Strategy_Sharpe']:.2f} | {_pct(g['Strategy_Max_Drawdown'])} | "
+                    f"{_pct(g['Win_Rate_Trade'], 1)} | {_pct(g['Win_Rate_Day'], 1)} |")
+    rf_rows = " · ".join(f"rf {float(k):.0%}: {v['Strategy_Sharpe']:.2f} (buy & hold {v['BnH_Sharpe']:.2f})"
+                         for k, v in bt["risk_free_sensitivity"].items())
+    sens_text = "\n".join(sens) + f"\n\n**Sharpe vs risk-free assumption ({head_ex.replace('_', '-')}, default cost):** {rf_rows}"
+    note = ("> **Why per-day win rate and precision can coincide:** with zero costs and *close-to-close* execution, "
+            "the strategy is long exactly on the days the model predicts UP and earns exactly the target return, so the "
+            f"per-day win rate equals the model's test precision ({_pct(run['metrics']['mlp']['test']['Precision'])}) by construction. "
+            "With next-open execution or with costs, the two differ.")
     return {
-        "backtest_table": table, "sensitivity_table": "\n".join(sens), "winrate_note": note,
-        "header_backtest": f"Out-of-Sample Test Backtest {ret} vs {bnh} Buy & Hold (Sharpe {d['Strategy_Sharpe']:.2f})",
-        "exec_backtest_row": (f"| **Backtest Return ({_pct(d['cost_per_position_change'])} Cost)**| **{ret}** (vs **{bnh}** Buy & Hold) | "
+        "backtest_rules": rules, "backtest_table": backtest_table, "sensitivity_table": sens_text, "winrate_note": note,
+        "header_backtest": f"Test backtest ({head_ex.replace('_', '-')}, after costs): strategy {ret} vs {bnh} buy & hold",
+        "exec_backtest_row": (f"| **Backtest ({_pct(bt['cost_per_side'])}/side, {head_ex.replace('_', '-')})**| **{ret}** (vs **{bnh}** Buy & Hold, same periods) | "
                               f"Sharpe: **{d['Strategy_Sharpe']:.2f}** \\| Max Drawdown: **{_pct(d['Strategy_Max_Drawdown'])}** \\| "
-                              f"Win Rate: **{_pct(d['Win_Rate'])}** ({d['Total_Trades']} position changes) |"),
-        "default_cost": _pct(d["cost_per_position_change"]),
-        "default_cost_parts": f"{_pct(d['transaction_cost'])} transaction cost + {_pct(d['slippage'])} slippage",
-        "qa_backtest": (f"Over the test period the strategy returned {ret} against {bnh} for Buy & Hold. The model spent "
-                        f"{_pct(d['Cash_Days'] / d['Days_Tested'], 1)} of trading days in cash, so most of the difference comes "
-                        "from avoiding drawdowns rather than from frequent correct calls. This is one historical period, not evidence of future returns."),
+                              f"Win Rate: **{_pct(d['Win_Rate_Trade'], 1)}** per trade ({d['Trades']} trades) |"),
+        "qa_backtest": (f"After {_pct(bt['cost_per_side'])}-per-side costs and executing at the next open, the strategy returned {ret} against "
+                        f"{bnh} for buy & hold over the same periods, so it {verdict.replace('**', '')} buy & hold. It traded {d['Trades']} round trips and paid "
+                        f"{_pct(d['Total_Cost_Paid'])} of capital in costs. This is one historical period, not evidence of future returns."),
     }
 
 

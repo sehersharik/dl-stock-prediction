@@ -3,9 +3,9 @@
 > **A 10-Year Empirical Financial Machine Learning Framework**  
 > **Target Asset:** RELIANCE Industries Ltd. (`RELIANCE.NS`) on National Stock Exchange of India (NSE)  
 > **Market Context Assets:** NIFTY 50 Index (`^NSEI`) & India VIX Volatility Index (`^INDIAVIX`)  
-> **Dataset Period:** October 2016 – October 2026 (2,475 raw daily sessions → 1,890 aligned stationary samples)  
+> **Dataset Period:** October 2016 – October 2026 (2,475 raw daily sessions → 2,230 aligned stationary samples)  
 > **Validated Deep Learning Architecture:** Compact PyTorch MLP `[32, 16]` with L2 Regularization & Class-Weighted BCE Loss  
-> **Reported results:** generated from `reports/metrics.json` (run `20261007_003042`) | Out-of-Sample Test Backtest +23.80% vs +5.13% Buy & Hold (Sharpe 1.45)
+> **Reported results:** generated from `reports/metrics.json` (run `20261029_200739_879921`) | Test backtest (next-open, after costs): strategy -17.08% vs -1.43% buy & hold
 
 ---
 
@@ -16,15 +16,15 @@
 | **Target Asset** | `RELIANCE.NS` | Major liquid blue-chip constituent of NIFTY 50 |
 | **Context Feeds** | `^NSEI` (NIFTY 50) & `^INDIAVIX` (India VIX) | Parallel macro market return & volatility feeds |
 | **Data Horizon** | 10 Years (2016 – 2026) | 2,475 raw trading sessions |
-| **Effective Dataset Size** | 1,890 Aligned Observations | After 200-day indicator warmup and missing target drop; calendar rule: none: holiday placeholder bars kept, leaving ~50-row gaps after each |
+| **Effective Dataset Size** | 2,230 Aligned Observations | After 200-day indicator warmup and missing target drop; calendar rule: NIFTY dates define NSE sessions; zero-volume flat placeholder bars dropped |
 | **Feature Matrix ($X$)** | 27 Stationary Dimensionless Features | Returns, ratios, normalized momentum, volatility & macro context |
 | **Target Vector ($y$)** | Next-Day Direction $y_t \in \{0, 1\}$ | $y_t = 1$ if $(P_{t+1}/P_t - 1) > 0$ else $0$ |
-| **Train / Val / Test Split** | Chronological (70/15/15 by row count) | Train: 1,323 \| Val: 283 \| Test: 284 (2024–2026) |
+| **Train / Val / Test Split** | Chronological (fixed dates: train <= 2023-10-19, val <= 2024-12-20, test <= 2026-09-10) | Train: 1,513 \| Val: 283 \| Test: 419 (2024–2026) |
 | **Model Architecture** | PyTorch Small MLP `[32, 16]` | Input (27) $\to$ Linear(32) $\to$ ReLU $\to$ Drop(0.2) $\to$ Linear(16) $\to$ ReLU $\to$ Drop(0.2) $\to$ Out(1) |
 | **Optimizer & Loss** | Adam ($\text{lr}=10^{-3}, \text{weight\_decay}=10^{-3}$) | `BCEWithLogitsLoss` with dynamic class `pos_weight` |
-| **Out-of-Sample ROC-AUC** | **0.5676** | Test set (284 trading days, 2024–2026); also used to choose the feature set, so likely optimistic |
-| **Out-of-Sample Balanced Acc**| **57.39%** | Precision: 58.68% \| Recall: 50.00% \| F1: 0.5399 |
-| **Backtest Return (0.15% Cost)**| **+23.80%** (vs **+5.13%** Buy & Hold) | Sharpe: **1.45** \| Max Drawdown: **-5.27%** \| Win Rate: **55.37%** (64 position changes) |
+| **Out-of-Sample ROC-AUC** | **0.5363** | Test set (419 trading days, 2024–2026); evaluated once; feature set chosen on validation |
+| **Out-of-Sample Balanced Acc**| **52.82%** | Precision: 53.29% \| Recall: 39.13% \| F1: 0.4513 |
+| **Backtest (0.15%/side, next-open)**| **-17.08%** (vs **-1.43%** Buy & Hold, same periods) | Sharpe: **-1.11** \| Max Drawdown: **-21.61%** \| Win Rate: **32.8%** per trade (61 trades) |
 | **Test Suite** | `python -m pytest` | Includes leakage, stationary-column, splitter, live-inference parity and metrics-consistency tests |
 
 ---
@@ -101,12 +101,12 @@ To resolve these empirical failures, we executed a complete systemic rebuild:
 OLD PIPELINE (2-Year Baseline)         NEW REBUILT PIPELINE (10-Year Stationary Framework)
 ───────────────────────────────         ──────────────────────────────────────────────────
 • 493 raw rows (2022–2024)             • 2,475 raw rows (2016–2026: RELIANCE + NIFTY + VIX)
-• 205 usable training samples          • 1,890 clean aligned stationary samples
+• 205 usable training samples          • 2,230 clean aligned stationary samples
 • 15/28 non-stationary Rupee features  • 27/27 stationary, scale-invariant features (0 raw prices)
 • 14,561 MLP parameters                • 1,441 compact MLP parameters [32, 16]
-• Probability collapse (0.459-0.512)   • Test probabilities 0.461-0.654 (std 0.028)
+• Probability collapse (0.459-0.512)   • Test probabilities 0.465-0.626 (std 0.017)
 • NIFTY/VIX context unpassed           • NIFTY + India VIX context fully integrated
-• 44-day test sample (regime shifted)  • 284-day out-of-sample test set (2024-12-23 to 2026-09-10)
+• 44-day test sample (regime shifted)  • 419-day out-of-sample test set (2024-12-23 to 2026-09-10)
 ```
 
 ---
@@ -125,9 +125,9 @@ Feature Generator ──► Compute 27 Stationary Features at time t
 Target Generator  ──► Compute Target at time t using Close price at t+1
                        │  Target_Direction_t = 1 if (Close_{t+1} / Close_t - 1) > 0 else 0
                        ▼
-Chronological Split ─► Train (1,323 samples | 2017-07-27 to 2023-10-19)
+Chronological Split ─► Train (1,513 samples | 2017-07-27 to 2023-10-19)
                        Val   (283 samples | 2023-10-20 to 2024-12-20)
-                       Test  (284 samples | 2024-12-23 to 2026-09-10)
+                       Test  (419 samples | 2024-12-23 to 2026-09-10)
                        │
                        ▼
 Strict Scaler     ──► StandardScaler FIT ONLY on Train set
@@ -223,10 +223,10 @@ Linear(16 -> 1)   ──►  Logits (Binary Output)
 
 Financial time series exhibit strong temporal dependence and regime shifts. Random cross-validation is invalid. We use a hard chronological split:
 
-### 1. Hard Chronological Split (70/15/15 by row count)
-- **Training Set:** 1,323 samples | 2017-07-27 to 2023-10-19 (51.4% UP days)
-- **Validation Set:** 283 samples | 2023-10-20 to 2024-12-20 (53.0% UP days)
-- **Test Set:** 284 samples | 2024-12-23 to 2026-09-10 (50.0% UP days)
+### 1. Hard Chronological Split (fixed dates: train <= 2023-10-19, val <= 2024-12-20, test <= 2026-09-10)
+- **Training Set:** 1,513 samples | 2017-07-27 to 2023-10-19 (51.4% UP days)
+- **Validation Set:** 283 samples | 2023-10-20 to 2024-12-20 (53.4% UP days)
+- **Test Set:** 419 samples | 2024-12-23 to 2026-09-10 (49.4% UP days)
 
 > **Walk-forward evaluation:** `src/evaluation/splitter.py` defines 5 expanding-window folds (print them with `python main.py splits`), but no per-fold model evaluation is implemented yet. Walk-forward results previously listed here were removed because no code in the repository produces them.
 
@@ -234,31 +234,32 @@ Financial time series exhibit strong temporal dependence and regime shifts. Rand
 
 ## Empirical Benchmark Comparisons & Out-of-Sample Results
 
-### Out-of-Sample Test Set Performance (2024–2026, 284 days)
+### Out-of-Sample Test Set Performance (2024–2026, 419 days)
 
 | Model Architecture | Accuracy | Balanced Acc | Precision | Recall | F1-Score | ROC-AUC | PR-AUC |
 |---|---|---|---|---|---|---|---|
-| Logistic Regression | 48.24% | 48.24% | 48.09% | 44.37% | 0.4615 | 0.5070 | 0.5155 |
-| Random Forest | 50.00% | 50.00% | 50.00% | 41.55% | 0.4538 | 0.5113 | 0.5147 |
-| **Small MLP [32, 16] (Final)** | **57.39%** | **57.39%** | **58.68%** | **50.00%** | **0.5399** | **0.5676** | **0.5301** |
-| LSTM (Seq 30) | 48.94% | 48.94% | 48.31% | 30.28% | 0.3723 | 0.4890 | 0.5113 |
+| Majority Class Baseline | 49.40% | 50.00% | 49.40% | 100.00% | 0.6613 | 0.5000 | 0.4940 |
+| Logistic Regression | 48.21% | 48.30% | 47.92% | 55.56% | 0.5145 | 0.4753 | 0.4767 |
+| Random Forest | 52.51% | 52.50% | 51.92% | 52.17% | 0.5205 | 0.5318 | 0.5193 |
+| XGBoost | 52.27% | 52.26% | 51.69% | 51.69% | 0.5169 | 0.5126 | 0.5092 |
+| **Small MLP [32, 16] (Final)** | **52.98%** | **52.82%** | **53.29%** | **39.13%** | **0.4513** | **0.5363** | **0.5112** |
 
-> All rows use the same split, feature set (27 features) and threshold (0.5). Source: `reports/metrics.json`, run `20261007_003042`.
+> All rows use the same split, feature set (27 features) and threshold (0.5). Source: `reports/metrics.json`, run `20261029_200739_879921`.
 
 ---
 
 ## Controlled Feature Ablation Progression (F0 to F5)
 
-| Feature Level | Feature Groups Included | Total Features | MLP Test ROC-AUC | MLP Test Accuracy | MLP Test F1 | LSTM Test ROC-AUC |
-|---|---|---|---|---|---|---|
-| **F0 (Base)** | Returns + Spreads | 6 | 0.4683 | 46.83% | 0.4702 | 0.4592 |
-| **F1 (Trend)** | F0 + Moving Average Ratios | 11 | 0.4873 | 51.06% | 0.5775 | 0.5031 |
-| **F2 (Momentum)** | F1 + RSI, MACD, ROC | 15 | 0.4829 | 45.42% | 0.5260 | 0.4588 |
-| **F3 (Volatility)** | F2 + ATR, Volatility, Bollinger | 19 | 0.5148 | 49.30% | 0.6604 | 0.4835 |
-| **F4 (Volume)** | F3 + Volume Changes & Ratios | 21 | 0.4964 | 48.59% | 0.4786 | 0.4747 |
-| **F5 (Context) ✔ selected** | F4 + NIFTY 50 & India VIX | **27** | **0.5676** | **57.39%** | **0.5399** | **0.4890** |
+| Feature Level | Feature Groups Included | Total Features | MLP Validation ROC-AUC | MLP Validation Accuracy | MLP Validation F1 |
+|---|---|---|---|---|---|
+| **F0 (Base)** | Returns + Spreads | 6 | 0.4812 | 48.06% | 0.4948 |
+| **F1 (Trend)** | F0 + Moving Average Ratios | 11 | 0.4969 | 50.53% | 0.5172 |
+| **F2 (Momentum)** | F1 + RSI, MACD, ROC | 15 | 0.4977 | 50.18% | 0.5253 |
+| **F3 (Volatility)** | F2 + ATR, Volatility, Bollinger | 19 | 0.5375 | 51.59% | 0.6532 |
+| **F4 (Volume)** | F3 + Volume Changes & Ratios | 21 | 0.5024 | 49.47% | 0.4257 |
+| **F5 (Context) ✔ selected** | F4 + NIFTY 50 & India VIX | **27** | **0.5473** | **51.94%** | **0.4809** |
 
-> **Caveat — test-set contamination:** these ablation scores were measured on the test period, and the final feature set (F5) was chosen because it scored best there. The headline test ROC-AUC of 0.5676 is therefore likely optimistic.
+> Feature set chosen by **validation ROC-AUC only**; the test period was not scored during ablation and was evaluated once, after the choice was frozen.
 
 ---
 
@@ -266,59 +267,62 @@ Financial time series exhibit strong temporal dependence and regime shifts. Rand
 
 Computed by shuffling each feature column on the test set and measuring the drop in model ROC-AUC:
 
-```text
-Top Features Ranked by Drop in Test ROC-AUC:
-
-1. Dist_SMA200        [+0.0337]
-2. NIFTY_Return_1d    [+0.0204]
-3. VIX_Change_1d      [+0.0160]
-4. RSI_14             [+0.0126]
-5. ROC_12             [+0.0119]
-6. NIFTY_Return_5d    [+0.0079]
-7. Vol_Change         [+0.0076]
-8. Return_1d          [+0.0073]
-9. MACD_Ratio         [+0.0072]
-10. CO_Spread          [+0.0071]
-```
+Permutation importance has not been computed for run `20261029_200739_879921` yet.
 
 ---
 
 ## Vectorized Backtesting Protocol & Execution Engine
 
 ### Protocol & Rules
-- **Out-of-Sample Test Period:** 284 trading days (2024-12-23 to 2026-09-10)
 - **Initial Capital:** ₹100,000
-- **Signal Threshold:** $\text{Probability} \ge 0.50 \implies \text{LONG (1)}$, else $\text{CASH (0)}$
-- **Friction Modeling:** 0.10% transaction cost + 0.05% slippage (Total friction: **0.15% per position change**)
-- **Execution Timing:** Decision made at Close $T$ using features through $T$; return realized from Close $T$ to Close $T+1$.
+- **Out-of-Sample Test Period:** 419 signal days (2024-12-23 to 2026-09-10)
+- **Signal:** long if $P(\text{UP}) \ge 0.5$, otherwise cash (cash earns nothing)
+- **Execution (headline):** signal at close $T$; enter/exit at open T+1, hold to open T+2. Also reported: enter/exit at close T, hold to close T+1
+- **Costs:** 0.15% **per side** (every entry and every exit, including closing at the end); a round trip costs 0.30%
+- **Benchmark:** buy & hold over exactly the same periods, paying one entry and one exit at the same cost
+- **Sharpe:** excess daily returns over a 6.0% annual risk-free rate, ×√252. Assumption: constant 6.0% p.a., the approximate RBI 91-day Treasury-bill yield over the test period (auction cut-offs roughly 5.5%-6.7%); Sharpe also reported at 0/5/7%.
+- **Returns** are measured on the trading-session calendar, so each period is exactly one session. 6 sessions in the window have no prediction (input-data gaps) and are skipped by both strategies; Reliance's raw price change over the whole window was +3.77%.
 
 ---
 
 ## Vectorized Backtest Results vs Buy & Hold Benchmark
 
-| Metric | Model Strategy (MLP [32, 16]) | Buy & Hold Benchmark |
+| Metric | Model Strategy (next-open) | Buy & Hold (same periods) |
 |---|---|---|
-| **Cumulative Total Return** | **+23.80%** | +5.13% |
-| **Annualized Return** | **+20.94%** | +4.56% |
-| **Annualized Volatility** | **13.77%** | 22.41% |
-| **Sharpe Ratio** | **1.45** | 0.31 |
-| **Maximum Drawdown** | **-5.27%** | -18.90% |
-| **Win Rate (per in-market day)** | **55.37%** (67 wins / 121 in-market days) | N/A |
-| **Position Changes** | **64** | 1 (Buy at start) |
-| **Market Exposure** | **42.8%** (121 long days, 162 cash days) | 100.0% |
+| **Total Return (after costs)** | **-17.08%** | -1.43% |
+| **Annualized Return** | **-10.65%** | -0.86% |
+| **Annualized Volatility** | **14.53%** | 23.72% |
+| **Sharpe (rf 6.0%)** | **-1.11** | -0.16 |
+| **Sharpe (rf 0%)** | **-0.70** | 0.08 |
+| **Maximum Drawdown** | **-21.61%** | -19.97% |
+| **Trades (round trips)** | **61** (20 winners) | 1 |
+| **Win Rate per Trade** | **32.8%** (avg trade -0.29%) | N/A |
+| **Win Rate per In-Market Day** | **43.4%** (66 / 152 days) | N/A |
+| **Position Changes / Annual Turnover** | **122** / 73× capital per year | 2 |
+| **Total Costs Paid** | **18.30%** of capital | 0.30% |
+| **Market Exposure** | **36.3%** (152 long / 267 cash days) | 100.0% |
+
+### Execution Assumption
+
+| Execution | Strategy Return | Buy & Hold | Sharpe | Max Drawdown | Win Rate / Trade | Win Rate / Day | Trades |
+|---|---|---|---|---|---|---|---|
+| enter/exit at open T+1, hold to open T+2 **(headline)** | -17.08% | -1.43% | -1.11 | -21.61% | 32.8% | 43.4% | 61 |
+| enter/exit at close T, hold to close T+1 | -6.49% | -0.79% | -0.73 | -19.06% | 31.1% | 48.0% | 61 |
 
 ---
 
 ## Transaction Cost Sensitivity & Stress Testing
 
-| Cost per Position Change | Transaction Cost + Slippage | Cumulative Return | Sharpe Ratio | Max Drawdown | Win Rate (per day) |
-|---|---|---|---|---|---|
-| **0.00%** | 0.00% + 0.00% | +36.25% | 2.06 | -4.79% | 58.68% |
-| **0.15% (default)** | 0.10% + 0.05% | +23.80% | 1.45 | -5.27% | 55.37% |
-| **0.25%** | 0.20% + 0.05% | +16.13% | 1.04 | -6.80% | 54.55% |
-| **0.30%** | 0.20% + 0.10% | +12.47% | 0.83 | -8.08% | 52.89% |
+| Cost per Side | Transaction Cost + Slippage | Strategy Return | Buy & Hold | Sharpe | Max Drawdown | Win Rate / Trade | Win Rate / Day |
+|---|---|---|---|---|---|---|---|
+| **0.00%** | 0.00% + 0.00% | -0.42% | -1.14% | -0.35 | -15.88% | 41.0% | 44.7% |
+| **0.15% (default)** | 0.10% + 0.05% | -17.08% | -1.43% | -1.11 | -21.61% | 32.8% | 43.4% |
+| **0.25%** | 0.20% + 0.05% | -26.62% | -1.63% | -1.60 | -27.82% | 26.2% | 40.8% |
+| **0.30%** | 0.20% + 0.10% | -30.97% | -1.73% | -1.85 | -31.28% | 26.2% | 40.1% |
 
-> **Why the zero-cost win rate equals the MLP's precision (58.68%):** win rate here is counted per in-market day. At threshold 0.5 the strategy is in the market exactly on the days the model predicts UP, so with no costs a winning day is the same as a correct UP prediction.
+**Sharpe vs risk-free assumption (next-open, default cost):** rf 0%: -0.70 (buy & hold 0.08) · rf 5%: -1.04 (buy & hold -0.12) · rf 6%: -1.11 (buy & hold -0.16) · rf 7%: -1.17 (buy & hold -0.20)
+
+> **Why per-day win rate and precision can coincide:** with zero costs and *close-to-close* execution, the strategy is long exactly on the days the model predicts UP and earns exactly the target return, so the per-day win rate equals the model's test precision (53.29%) by construction. With next-open execution or with costs, the two differ.
 
 ---
 
@@ -473,11 +477,11 @@ python -m pytest tests/ -v
 2. **Q: How does your pipeline prevent data leakage?**  
    *A:* Features at $t$ use data available strictly at or before $t$. Targets at $t$ use future return at $t+1$. Data scalers are fitted exclusively on the training partition $X_{train}$.
 
-3. **Q: Why did adding NIFTY and VIX context change test ROC-AUC from 0.496 to 0.568?**  
+3. **Q: Why did adding NIFTY and VIX context change validation ROC-AUC from 0.502 to 0.547?**  
    *A:* Single-stock indicators lack macro regime context. Market index returns and volatility indices provide essential information regarding overall market direction and risk sentiment.
 
 4. **Q: How should the backtest result be read, given modest direction accuracy?**  
-   *A:* Over the test period the strategy returned +23.80% against +5.13% for Buy & Hold. The model spent 57.2% of trading days in cash, so most of the difference comes from avoiding drawdowns rather than from frequent correct calls. This is one historical period, not evidence of future returns.
+   *A:* After 0.15%-per-side costs and executing at the next open, the strategy returned -17.08% against -1.43% for buy & hold over the same periods, so it did worse than buy & hold. It traded 61 round trips and paid 18.30% of capital in costs. This is one historical period, not evidence of future returns.
 
 ---
 
