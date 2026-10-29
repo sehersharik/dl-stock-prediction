@@ -43,11 +43,16 @@ def main():
     explain_parser = subparsers.add_parser("explain", help="Run model explainability (Permutation/SHAP)")
     explain_parser.add_argument("--ticker", required=True, help="Ticker symbol to process")
     explain_parser.add_argument("--model", required=True, choices=["mlp"], help="Model to explain")
+    explain_parser.add_argument("--run", required=True, help="MLP registry run id (models/RELIANCE/mlp/<run>) trained on the current processed data")
     ablation_parser = subparsers.add_parser("ablation", help="Run feature ablation experiments")
     ablation_parser.add_argument("--ticker", required=True, help="Ticker symbol to process")
     train_parser = subparsers.add_parser("train", help="Train baseline or DL models")
     train_parser.add_argument("--ticker", required=True, help="Ticker symbol to process")
     train_parser.add_argument("--model", required=True, choices=["majority", "logistic", "random_forest", "xgboost", "mlp", "lstm"], help="Model to train")
+    metrics_parser = subparsers.add_parser("metrics", help="Build reports/metrics.json (single source of reported results)")
+    metrics_parser.add_argument("--new-run", required=True, help="MLP registry run id to include alongside the previous run")
+    metrics_parser.add_argument("--active", required=True, help="Run id the dashboard, README and live engine should use")
+    readme_parser = subparsers.add_parser("readme", help="Render README.md from docs/README.template.md and reports/metrics.json")
     split_parser = subparsers.add_parser("splits", help="Validate and visualize chronological splits")
     split_parser.add_argument("--ticker", required=True, help="Ticker symbol to process")
     
@@ -124,7 +129,13 @@ def main():
         files_10y = list(raw_dir.glob(f"{args.ticker}_10y.csv"))
         chosen_file = files_10y[0] if files_10y else sorted(list(raw_dir.glob(f"{args.ticker}_*.csv")))[-1]
         df_prices = pd.read_csv(chosen_file, index_col=0, parse_dates=True).sort_index()
-        
+
+        # Same trading-session calendar as feature generation, so "next day" means next session
+        from src.features.generator import align_trading_calendar
+        nifty_files = list(raw_dir.glob("*NSEI*.csv"))
+        nifty = pd.read_csv(nifty_files[0], index_col=0, parse_dates=True) if nifty_files else None
+        df_prices = align_trading_calendar(df_prices, {'NIFTY': nifty} if nifty is not None else None)
+
         df_features = pd.read_csv(feature_path, index_col=0, parse_dates=True)
         generator = TargetGenerator(config)
         
@@ -176,12 +187,20 @@ def main():
         models_dir = PROJECT_ROOT / 'models'
         reports_dir = PROJECT_ROOT / 'reports'
         
-        X = pd.read_csv(proc_dir / f"{args.ticker}_X.csv", index_col=0, parse_dates=True)
+        import json, joblib
+        run_dir = models_dir / args.ticker.replace(".NS", "") / args.model / args.run
+        meta = json.loads((run_dir / "metadata.json").read_text())
+        
+        X = pd.read_csv(proc_dir / f"{args.ticker}_X.csv", index_col=0, parse_dates=True)[meta["feature_list"]]
         y = pd.read_csv(proc_dir / f"{args.ticker}_y.csv", index_col=0, parse_dates=True)["Target_Direction"]
         
         splitter = TimeSeriesSplitter(config)
         (X_train, y_train), (X_val, y_val), (X_test, y_test) = splitter.split_train_val_test(X, y)
-        scaler, X_train_s, X_val_s, X_test_s = splitter.scale_features(X_train, X_val, X_test)
+        if [str(X_test.index[0]), str(X_test.index[-1])] != meta["test_period"]:
+            raise ValueError(f"Run {args.run} was not trained on the current processed data/split")
+        # Use the run's own fitted scaler rather than refitting
+        scaler = joblib.load(run_dir / "scaler.joblib")
+        X_train_s, X_test_s = (pd.DataFrame(scaler.transform(d), index=d.index, columns=d.columns) for d in (X_train, X_test))
         
         device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
         
@@ -190,7 +209,7 @@ def main():
         dropout = dl_cfg.get("dropout", 0.2)
         
         model = ConfigurableMLP(input_dim=X.shape[1], layer_dims=layers, dropout=dropout).to(device)
-        model_path = models_dir / f"{args.ticker}_{args.model}_Target_Direction.pt"
+        model_path = run_dir / "model.pt"
         
         try:
             model.load_state_dict(torch.load(model_path, map_location=device))
@@ -243,12 +262,23 @@ def main():
 
     elif args.command == "train":
         from src.utils.config import PROJECT_ROOT
+        import json
+        from src.experiments.feature_ablation import selection_path
+        
+        # Use the validation-selected feature set when an ablation selection exists
+        feature_cols = None
+        sel_file = selection_path(args.ticker)
+        if sel_file.exists():
+            sel = json.loads(sel_file.read_text())
+            feature_cols = sel["selected_features"]
+            logger.info(f"Using {sel['selected_level']} feature set ({len(feature_cols)} features) selected on {sel['selection_split']} {sel['selection_metric']}")
         
         if args.model == "mlp":
             from src.models.dl_trainer import DLTrainer
             trainer = DLTrainer(config, PROJECT_ROOT)
             try:
-                metrics = trainer.train_mlp(args.ticker, target_col='Target_Direction')
+                metrics = trainer.train_mlp(args.ticker, target_col='Target_Direction', feature_cols=feature_cols)
+                logger.info(f"MLP run {metrics['run_id']}: val ROC-AUC {metrics['val']['ROC-AUC']:.4f}, test ROC-AUC {metrics['test']['ROC-AUC']:.4f}")
             except Exception as e:
                 import traceback
                 logger.error(f"DL Training failed: {e}\n{traceback.format_exc()}")
@@ -264,7 +294,7 @@ def main():
             from src.models.trainer import ModelTrainer
             trainer = ModelTrainer(config, PROJECT_ROOT)
             try:
-                metrics = trainer.train_baseline(args.ticker, args.model, target_col='Target_Direction')
+                metrics = trainer.train_baseline(args.ticker, args.model, target_col='Target_Direction', feature_cols=feature_cols)
                 val_metrics = metrics['metrics']['val']
                 logger.info(f"=== {args.model.upper()} Validation Performance ===")
                 logger.info(f"{'Metric':<20} | {'Score'}")
@@ -276,6 +306,14 @@ def main():
             except Exception as e:
                 import traceback
                 logger.error(f"Training failed: {e}\n{traceback.format_exc()}")
+
+    elif args.command == "metrics":
+        from src.evaluation.metrics_registry import build
+        build(args.new_run, args.active)
+
+    elif args.command == "readme":
+        from src.evaluation.readme_render import render
+        render()
 
     elif args.command is None:
         logger.info("Deep Learning Based Stock Risk Prediction System initialized.")

@@ -18,7 +18,7 @@ class ModelTrainer:
         self.project_root = project_root
         self.splitter = TimeSeriesSplitter(config)
         
-    def train_baseline(self, ticker: str, model_name: str, target_col: str = 'Target_Direction'):
+    def train_baseline(self, ticker: str, model_name: str, target_col: str = 'Target_Direction', feature_cols: list = None):
         proc_dir = self.project_root / self.config['data'].get('processed_dir', 'data/processed')
         models_dir = self.project_root / 'models'
         pred_dir = self.project_root / 'data' / 'predictions'
@@ -27,6 +27,8 @@ class ModelTrainer:
         
         # 1. Load Isolated Data
         X = pd.read_csv(proc_dir / f"{ticker}_X.csv", index_col=0, parse_dates=True)
+        if feature_cols is not None:
+            X = X[feature_cols]
         y = pd.read_csv(proc_dir / f"{ticker}_y.csv", index_col=0, parse_dates=True)
         y_target = y[target_col]
         
@@ -61,6 +63,9 @@ class ModelTrainer:
             "model_name": model_name,
             "ticker": ticker,
             "target": target_col,
+            "feature_list": X.columns.tolist(),
+            "periods": {name: [str(d.index[0].date()), str(d.index[-1].date()), len(d)]
+                        for name, d in [("train", X_train), ("val", X_val), ("test", X_test)]},
             "metrics": {
                 "train": train_metrics,
                 "val": val_metrics,

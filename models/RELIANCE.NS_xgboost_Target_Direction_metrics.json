@@ -1,0 +1,110 @@
+{
+    "model_name": "xgboost",
+    "ticker": "RELIANCE.NS",
+    "target": "Target_Direction",
+    "feature_list": [
+        "Return_1d",
+        "Return_5d",
+        "Return_10d",
+        "Return_20d",
+        "HL_Spread",
+        "CO_Spread",
+        "Dist_SMA20",
+        "Dist_SMA50",
+        "Dist_SMA200",
+        "SMA20_50_Ratio",
+        "SMA50_200_Ratio",
+        "RSI_14",
+        "MACD_Ratio",
+        "MACD_Hist_Ratio",
+        "ROC_12",
+        "ATR_Ratio",
+        "Rolling_Vol_20",
+        "BB_PctB",
+        "BB_Width",
+        "Vol_Change",
+        "Vol_Ratio_20",
+        "NIFTY_Return_1d",
+        "NIFTY_Return_5d",
+        "NIFTY_Vol_20",
+        "NIFTY_Dist_SMA50",
+        "VIX_Level",
+        "VIX_Change_1d"
+    ],
+    "periods": {
+        "train": [
+            "2017-07-27",
+            "2023-10-19",
+            1513
+        ],
+        "val": [
+            "2023-10-20",
+            "2024-12-20",
+            283
+        ],
+        "test": [
+            "2024-12-23",
+            "2026-09-10",
+            419
+        ]
+    },
+    "metrics": {
+        "train": {
+            "Accuracy": 1.0,
+            "Balanced Accuracy": 1.0,
+            "Precision": 1.0,
+            "Recall": 1.0,
+            "F1": 1.0,
+            "Confusion Matrix": [
+                [
+                    735,
+                    0
+                ],
+                [
+                    0,
+                    778
+                ]
+            ],
+            "ROC-AUC": 1.0,
+            "PR-AUC": 1.0
+        },
+        "val": {
+            "Accuracy": 0.558303886925795,
+            "Balanced Accuracy": 0.555112382099137,
+            "Precision": 0.5833333333333334,
+            "Recall": 0.6026490066225165,
+            "F1": 0.5928338762214984,
+            "Confusion Matrix": [
+                [
+                    67,
+                    65
+                ],
+                [
+                    60,
+                    91
+                ]
+            ],
+            "ROC-AUC": 0.5715934176199077,
+            "PR-AUC": 0.5880257250700764
+        },
+        "test": {
+            "Accuracy": 0.522673031026253,
+            "Balanced Accuracy": 0.5226050496764196,
+            "Precision": 0.5169082125603864,
+            "Recall": 0.5169082125603864,
+            "F1": 0.5169082125603864,
+            "Confusion Matrix": [
+                [
+                    112,
+                    100
+                ],
+                [
+                    100,
+                    107
+                ]
+            ],
+            "ROC-AUC": 0.5126241910491295,
+            "PR-AUC": 0.5091737601997817
+        }
+    }
+}

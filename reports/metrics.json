@@ -1,0 +1,884 @@
+{
+  "generated_at": "2026-10-29T20:27:53",
+  "generated_by": "python main.py metrics",
+  "ticker": "RELIANCE.NS",
+  "target": "Target_Direction",
+  "active_run": "20261007_003042",
+  "runs": {
+    "20261007_003042": {
+      "label": "Previous deployed run (pre-Phase-3 data; feature set chosen on test)",
+      "model": {
+        "type": "mlp",
+        "layers": [
+          32,
+          16
+        ],
+        "dropout": 0.2,
+        "threshold": 0.5,
+        "n_features": 27,
+        "feature_list": [
+          "Return_1d",
+          "Return_5d",
+          "Return_10d",
+          "Return_20d",
+          "HL_Spread",
+          "CO_Spread",
+          "Dist_SMA20",
+          "Dist_SMA50",
+          "Dist_SMA200",
+          "SMA20_50_Ratio",
+          "SMA50_200_Ratio",
+          "RSI_14",
+          "MACD_Ratio",
+          "MACD_Hist_Ratio",
+          "ROC_12",
+          "ATR_Ratio",
+          "Rolling_Vol_20",
+          "BB_PctB",
+          "BB_Width",
+          "Vol_Change",
+          "Vol_Ratio_20",
+          "NIFTY_Return_1d",
+          "NIFTY_Return_5d",
+          "NIFTY_Vol_20",
+          "NIFTY_Dist_SMA50",
+          "VIX_Level",
+          "VIX_Change_1d"
+        ]
+      },
+      "data": {
+        "raw_sessions": 2475,
+        "rows": 1890,
+        "calendar_rule": "none: holiday placeholder bars kept, leaving ~50-row gaps after each",
+        "known_issues": [
+          "368 sessions missing from the feature matrix inside its date range",
+          "19 targets spanned more than one session (5 in the test split)"
+        ]
+      },
+      "split": {
+        "method": "70/15/15 by row count",
+        "train": {
+          "start": "2017-07-27",
+          "end": "2023-10-19",
+          "n": 1323,
+          "up_share": 0.5139833711262283
+        },
+        "val": {
+          "start": "2023-10-20",
+          "end": "2024-12-20",
+          "n": 283,
+          "up_share": 0.5300353356890459
+        },
+        "test": {
+          "start": "2024-12-23",
+          "end": "2026-09-10",
+          "n": 284,
+          "up_share": 0.5
+        }
+      },
+      "feature_selection": {
+        "split": "test",
+        "metric": "ROC-AUC",
+        "selected_level": "F5",
+        "levels": {
+          "F0": {
+            "n_features": 6,
+            "ROC-AUC": 0.46826026582027375,
+            "Accuracy": 0.46830985915492956,
+            "F1": 0.47017543859649125,
+            "Balanced Accuracy": 0.46830985915492956
+          },
+          "F1": {
+            "n_features": 11,
+            "ROC-AUC": 0.4872545129934536,
+            "Accuracy": 0.5105633802816901,
+            "F1": 0.5775075987841946,
+            "Balanced Accuracy": 0.5105633802816901
+          },
+          "F2": {
+            "n_features": 15,
+            "ROC-AUC": 0.4828902995437413,
+            "Accuracy": 0.45422535211267606,
+            "F1": 0.5259938837920489,
+            "Balanced Accuracy": 0.454225352112676
+          },
+          "F3": {
+            "n_features": 19,
+            "ROC-AUC": 0.5148284070620909,
+            "Accuracy": 0.49295774647887325,
+            "F1": 0.660377358490566,
+            "Balanced Accuracy": 0.49295774647887325
+          },
+          "F4": {
+            "n_features": 21,
+            "ROC-AUC": 0.4964292799047808,
+            "Accuracy": 0.4859154929577465,
+            "F1": 0.4785714285714286,
+            "Balanced Accuracy": 0.4859154929577465
+          },
+          "F5": {
+            "n_features": 27,
+            "ROC-AUC": 0.5676453084705415,
+            "Accuracy": 0.573943661971831,
+            "F1": 0.5399239543726235,
+            "Balanced Accuracy": 0.573943661971831
+          }
+        },
+        "lstm_levels": {
+          "F0": {
+            "ROC-AUC": 0.4591846855782583,
+            "Accuracy": 0.5070422535211268,
+            "F1": 0.05405405405405406,
+            "Balanced Accuracy": 0.5070422535211268
+          },
+          "F1": {
+            "ROC-AUC": 0.5030747867486609,
+            "Accuracy": 0.5,
+            "F1": 0.6666666666666666,
+            "Balanced Accuracy": 0.5
+          },
+          "F2": {
+            "ROC-AUC": 0.45878793890101177,
+            "Accuracy": 0.4788732394366197,
+            "F1": 0.5515151515151515,
+            "Balanced Accuracy": 0.47887323943661975
+          },
+          "F3": {
+            "ROC-AUC": 0.48348541955961116,
+            "Accuracy": 0.5,
+            "F1": 0.0,
+            "Balanced Accuracy": 0.5
+          },
+          "F4": {
+            "ROC-AUC": 0.4746826026582027,
+            "Accuracy": 0.5,
+            "F1": 0.6666666666666666,
+            "Balanced Accuracy": 0.5
+          },
+          "F5": {
+            "ROC-AUC": 0.48899027970640746,
+            "Accuracy": 0.4894366197183099,
+            "F1": 0.3722943722943723,
+            "Balanced Accuracy": 0.4894366197183099
+          }
+        }
+      },
+      "metrics": {
+        "mlp": {
+          "val": {
+            "Accuracy": 0.5477031802120141,
+            "Balanced Accuracy": 0.5498997493734336,
+            "Precision": 0.5833333333333334,
+            "Recall": 0.5133333333333333,
+            "F1": 0.5460992907801419,
+            "Confusion Matrix": [
+              [
+                78,
+                55
+              ],
+              [
+                73,
+                77
+              ]
+            ],
+            "ROC-AUC": 0.5390476190476191,
+            "PR-AUC": 0.570819914082221
+          },
+          "test": {
+            "Accuracy": 0.573943661971831,
+            "Balanced Accuracy": 0.573943661971831,
+            "Precision": 0.5867768595041323,
+            "Recall": 0.5,
+            "F1": 0.5399239543726235,
+            "Confusion Matrix": [
+              [
+                92,
+                50
+              ],
+              [
+                71,
+                71
+              ]
+            ],
+            "ROC-AUC": 0.5676453084705415,
+            "PR-AUC": 0.5300814684590855
+          }
+        },
+        "baselines": {
+          "logistic": {
+            "train": {
+              "Accuracy": 0.564625850340136,
+              "Balanced Accuracy": 0.5628041807702864,
+              "Precision": 0.5693333333333334,
+              "Recall": 0.6279411764705882,
+              "F1": 0.5972027972027972,
+              "Confusion Matrix": [
+                [
+                  320,
+                  323
+                ],
+                [
+                  253,
+                  427
+                ]
+              ],
+              "ROC-AUC": 0.5863278748513403,
+              "PR-AUC": 0.5995316304153502
+            },
+            "val": {
+              "Accuracy": 0.49823321554770317,
+              "Balanced Accuracy": 0.49428571428571433,
+              "Precision": 0.525,
+              "Recall": 0.56,
+              "F1": 0.5419354838709678,
+              "Confusion Matrix": [
+                [
+                  57,
+                  76
+                ],
+                [
+                  66,
+                  84
+                ]
+              ],
+              "ROC-AUC": 0.5064661654135338,
+              "PR-AUC": 0.5629949899885363
+            },
+            "test": {
+              "Accuracy": 0.4823943661971831,
+              "Balanced Accuracy": 0.4823943661971831,
+              "Precision": 0.48091603053435117,
+              "Recall": 0.44366197183098594,
+              "F1": 0.46153846153846156,
+              "Confusion Matrix": [
+                [
+                  74,
+                  68
+                ],
+                [
+                  79,
+                  63
+                ]
+              ],
+              "ROC-AUC": 0.5069926601864709,
+              "PR-AUC": 0.5155207352936573
+            },
+            "source": "archive/run_20261007_003042/models/RELIANCE.NS_logistic_Target_Direction_metrics.json"
+          },
+          "random_forest": {
+            "train": {
+              "Accuracy": 1.0,
+              "Balanced Accuracy": 1.0,
+              "Precision": 1.0,
+              "Recall": 1.0,
+              "F1": 1.0,
+              "Confusion Matrix": [
+                [
+                  643,
+                  0
+                ],
+                [
+                  0,
+                  680
+                ]
+              ],
+              "ROC-AUC": 1.0,
+              "PR-AUC": 0.9999999999999998
+            },
+            "val": {
+              "Accuracy": 0.558303886925795,
+              "Balanced Accuracy": 0.5569172932330827,
+              "Precision": 0.5838926174496645,
+              "Recall": 0.58,
+              "F1": 0.5819397993311036,
+              "Confusion Matrix": [
+                [
+                  71,
+                  62
+                ],
+                [
+                  63,
+                  87
+                ]
+              ],
+              "ROC-AUC": 0.5724812030075188,
+              "PR-AUC": 0.5924181485638479
+            },
+            "test": {
+              "Accuracy": 0.5,
+              "Balanced Accuracy": 0.5,
+              "Precision": 0.5,
+              "Recall": 0.4154929577464789,
+              "F1": 0.45384615384615384,
+              "Confusion Matrix": [
+                [
+                  83,
+                  59
+                ],
+                [
+                  83,
+                  59
+                ]
+              ],
+              "ROC-AUC": 0.5113320769688553,
+              "PR-AUC": 0.5147456218349429
+            },
+            "source": "archive/run_20261007_003042/models/RELIANCE.NS_random_forest_Target_Direction_metrics.json"
+          }
+        },
+        "lstm": {
+          "test": {
+            "Accuracy": 0.4894366197183099,
+            "Balanced Accuracy": 0.4894366197183099,
+            "Precision": 0.48314606741573035,
+            "Recall": 0.3028169014084507,
+            "F1": 0.3722943722943723,
+            "Confusion Matrix": [
+              [
+                96,
+                46
+              ],
+              [
+                99,
+                43
+              ]
+            ],
+            "ROC-AUC": 0.48899027970640746,
+            "PR-AUC": 0.5113468378420882
+          },
+          "run_id": "20261007_003103",
+          "sequence_length": 30
+        }
+      },
+      "backtest": {
+        "cost_convention": "cost + slippage charged on every position change (per side; a round trip pays twice)",
+        "threshold": 0.5,
+        "default_index": 1,
+        "cost_grid": [
+          {
+            "transaction_cost": 0.0,
+            "slippage": 0.0,
+            "cost_per_position_change": 0.0,
+            "Days_Tested": 283,
+            "Strategy_Total_Return": 0.36250257004391395,
+            "Strategy_Annualized": 0.31710965566868277,
+            "Strategy_Volatility": 0.138322971303141,
+            "Strategy_Sharpe": 2.0607444971657354,
+            "Strategy_Max_Drawdown": -0.04785157497772825,
+            "BnH_Total_Return": 0.05129848348249988,
+            "BnH_Annualized": 0.04555324421838769,
+            "BnH_Volatility": 0.22413784520434835,
+            "BnH_Sharpe": 0.3109502484862775,
+            "BnH_Max_Drawdown": -0.18896742902343644,
+            "Win_Rate": 0.5867768595041323,
+            "Total_Trades": 64,
+            "In_Market_Days": 121,
+            "Cash_Days": 162,
+            "Winning_Days": 71
+          },
+          {
+            "transaction_cost": 0.001,
+            "slippage": 0.0005,
+            "cost_per_position_change": 0.0015,
+            "Days_Tested": 283,
+            "Strategy_Total_Return": 0.23800459450619815,
+            "Strategy_Annualized": 0.20938729391603172,
+            "Strategy_Volatility": 0.13770891936384302,
+            "Strategy_Sharpe": 1.4491741270393708,
+            "Strategy_Max_Drawdown": -0.05272220301768741,
+            "BnH_Total_Return": 0.05129848348249988,
+            "BnH_Annualized": 0.04555324421838769,
+            "BnH_Volatility": 0.22413784520434835,
+            "BnH_Sharpe": 0.3109502484862775,
+            "BnH_Max_Drawdown": -0.18896742902343644,
+            "Win_Rate": 0.5537190082644629,
+            "Total_Trades": 64,
+            "In_Market_Days": 121,
+            "Cash_Days": 162,
+            "Winning_Days": 67
+          },
+          {
+            "transaction_cost": 0.002,
+            "slippage": 0.0005,
+            "cost_per_position_change": 0.0025,
+            "Days_Tested": 283,
+            "Strategy_Total_Return": 0.1612994366842404,
+            "Strategy_Annualized": 0.1424315405521135,
+            "Strategy_Volatility": 0.13770037099792806,
+            "Strategy_Sharpe": 1.0353988350074341,
+            "Strategy_Max_Drawdown": -0.06804892626615866,
+            "BnH_Total_Return": 0.05129848348249988,
+            "BnH_Annualized": 0.04555324421838769,
+            "BnH_Volatility": 0.22413784520434835,
+            "BnH_Sharpe": 0.3109502484862775,
+            "BnH_Max_Drawdown": -0.18896742902343644,
+            "Win_Rate": 0.5454545454545454,
+            "Total_Trades": 64,
+            "In_Market_Days": 121,
+            "Cash_Days": 162,
+            "Winning_Days": 66
+          },
+          {
+            "transaction_cost": 0.002,
+            "slippage": 0.001,
+            "cost_per_position_change": 0.003,
+            "Days_Tested": 283,
+            "Strategy_Total_Return": 0.12472092851228056,
+            "Strategy_Annualized": 0.11033313187890381,
+            "Strategy_Volatility": 0.1378165748994262,
+            "Strategy_Sharpe": 0.8277676625467933,
+            "Strategy_Max_Drawdown": -0.08078161711358368,
+            "BnH_Total_Return": 0.05129848348249988,
+            "BnH_Annualized": 0.04555324421838769,
+            "BnH_Volatility": 0.22413784520434835,
+            "BnH_Sharpe": 0.3109502484862775,
+            "BnH_Max_Drawdown": -0.18896742902343644,
+            "Win_Rate": 0.5289256198347108,
+            "Total_Trades": 64,
+            "In_Market_Days": 121,
+            "Cash_Days": 162,
+            "Winning_Days": 64
+          }
+        ]
+      },
+      "artifacts": {
+        "model": "models/RELIANCE/mlp/20261007_003042/model.pt",
+        "scaler": "models/RELIANCE/mlp/20261007_003042/scaler.joblib",
+        "test_preds": "archive/run_20261007_003042/data/predictions/RELIANCE.NS_mlp_Target_Direction_test_preds.csv",
+        "backtest_curve": "archive/run_20261007_003042/reports/RELIANCE.NS_mlp_backtest_curve.csv",
+        "perm_importance": "archive/run_20261007_003042/reports/RELIANCE.NS_mlp_perm_importance.csv"
+      }
+    },
+    "20261029_200739_879921": {
+      "label": "Phase 3 retrain (cleaned calendar; feature set chosen on validation)",
+      "model": {
+        "type": "mlp",
+        "layers": [
+          32,
+          16
+        ],
+        "dropout": 0.2,
+        "threshold": 0.5,
+        "n_features": 27,
+        "feature_list": [
+          "Return_1d",
+          "Return_5d",
+          "Return_10d",
+          "Return_20d",
+          "HL_Spread",
+          "CO_Spread",
+          "Dist_SMA20",
+          "Dist_SMA50",
+          "Dist_SMA200",
+          "SMA20_50_Ratio",
+          "SMA50_200_Ratio",
+          "RSI_14",
+          "MACD_Ratio",
+          "MACD_Hist_Ratio",
+          "ROC_12",
+          "ATR_Ratio",
+          "Rolling_Vol_20",
+          "BB_PctB",
+          "BB_Width",
+          "Vol_Change",
+          "Vol_Ratio_20",
+          "NIFTY_Return_1d",
+          "NIFTY_Return_5d",
+          "NIFTY_Vol_20",
+          "NIFTY_Dist_SMA50",
+          "VIX_Level",
+          "VIX_Change_1d"
+        ]
+      },
+      "data": {
+        "raw_sessions": 2475,
+        "rows": 2230,
+        "calendar_rule": "NIFTY dates define NSE sessions; zero-volume flat placeholder bars dropped",
+        "dropped_dates": [
+          "2018-01-01",
+          "2019-01-01",
+          "2019-10-27",
+          "2020-11-14",
+          "2025-03-18",
+          "2026-01-15",
+          "2026-05-01",
+          "2026-05-28",
+          "2026-06-26",
+          "2026-09-14",
+          "2026-10-02"
+        ],
+        "rows_after_test_end": 15
+      },
+      "split": {
+        "method": "fixed dates: train <= 2023-10-19, val <= 2024-12-20, test <= 2026-09-10",
+        "train": {
+          "start": "2017-07-27",
+          "end": "2023-10-19",
+          "n": 1513,
+          "up_share": 0.5142101784534039
+        },
+        "val": {
+          "start": "2023-10-20",
+          "end": "2024-12-20",
+          "n": 283,
+          "up_share": 0.5335689045936396
+        },
+        "test": {
+          "start": "2024-12-23",
+          "end": "2026-09-10",
+          "n": 419,
+          "up_share": 0.49403341288782815
+        }
+      },
+      "feature_selection": {
+        "split": "validation",
+        "metric": "ROC-AUC",
+        "selected_level": "F5",
+        "levels": {
+          "F0": {
+            "n_features": 6,
+            "run_id": "20261029_200706_751931",
+            "ROC-AUC": 0.4811860325105358,
+            "Accuracy": 0.48056537102473496,
+            "F1": 0.4948453608247423,
+            "Balanced Accuracy": 0.4808348384507325
+          },
+          "F1": {
+            "n_features": 11,
+            "run_id": "20261029_200710_833391",
+            "ROC-AUC": 0.4969395946217138,
+            "Accuracy": 0.5053003533568905,
+            "F1": 0.5172413793103449,
+            "Balanced Accuracy": 0.5059201284366848
+          },
+          "F2": {
+            "n_features": 15,
+            "run_id": "20261029_200712_760948",
+            "ROC-AUC": 0.49774232390126427,
+            "Accuracy": 0.5017667844522968,
+            "F1": 0.5252525252525253,
+            "Balanced Accuracy": 0.5007023881196067
+          },
+          "F3": {
+            "n_features": 19,
+            "run_id": "20261029_200714_597523",
+            "ROC-AUC": 0.5375275938189845,
+            "Accuracy": 0.5159010600706714,
+            "F1": 0.6531645569620254,
+            "Balanced Accuracy": 0.4915462572747341
+          },
+          "F4": {
+            "n_features": 21,
+            "run_id": "20261029_200715_429784",
+            "ROC-AUC": 0.5024081878386515,
+            "Accuracy": 0.49469964664310956,
+            "F1": 0.42570281124497994,
+            "Balanced Accuracy": 0.5050421432871763
+          },
+          "F5": {
+            "n_features": 27,
+            "run_id": "20261029_200716_611380",
+            "ROC-AUC": 0.5473108569135059,
+            "Accuracy": 0.519434628975265,
+            "F1": 0.48091603053435117,
+            "Balanced Accuracy": 0.526791089704997
+          }
+        }
+      },
+      "metrics": {
+        "mlp": {
+          "val": {
+            "Accuracy": 0.519434628975265,
+            "Balanced Accuracy": 0.526791089704997,
+            "Precision": 0.5675675675675675,
+            "Recall": 0.41721854304635764,
+            "F1": 0.48091603053435117,
+            "Confusion Matrix": [
+              [
+                84,
+                48
+              ],
+              [
+                88,
+                63
+              ]
+            ],
+            "ROC-AUC": 0.5473108569135059,
+            "PR-AUC": 0.5984120554797864
+          },
+          "test": {
+            "Accuracy": 0.5298329355608592,
+            "Balanced Accuracy": 0.5281993437243643,
+            "Precision": 0.5328947368421053,
+            "Recall": 0.391304347826087,
+            "F1": 0.45125348189415043,
+            "Confusion Matrix": [
+              [
+                141,
+                71
+              ],
+              [
+                126,
+                81
+              ]
+            ],
+            "ROC-AUC": 0.5362774587548993,
+            "PR-AUC": 0.5112434675564224
+          }
+        },
+        "baselines": {
+          "majority": {
+            "train": {
+              "Accuracy": 0.5142101784534039,
+              "Balanced Accuracy": 0.5,
+              "Precision": 0.5142101784534039,
+              "Recall": 1.0,
+              "F1": 0.6791793976429507,
+              "Confusion Matrix": [
+                [
+                  0,
+                  735
+                ],
+                [
+                  0,
+                  778
+                ]
+              ],
+              "ROC-AUC": 0.5,
+              "PR-AUC": 0.5142101784534039
+            },
+            "val": {
+              "Accuracy": 0.5335689045936396,
+              "Balanced Accuracy": 0.5,
+              "Precision": 0.5335689045936396,
+              "Recall": 1.0,
+              "F1": 0.695852534562212,
+              "Confusion Matrix": [
+                [
+                  0,
+                  132
+                ],
+                [
+                  0,
+                  151
+                ]
+              ],
+              "ROC-AUC": 0.5,
+              "PR-AUC": 0.5335689045936396
+            },
+            "test": {
+              "Accuracy": 0.49403341288782815,
+              "Balanced Accuracy": 0.5,
+              "Precision": 0.49403341288782815,
+              "Recall": 1.0,
+              "F1": 0.6613418530351438,
+              "Confusion Matrix": [
+                [
+                  0,
+                  212
+                ],
+                [
+                  0,
+                  207
+                ]
+              ],
+              "ROC-AUC": 0.5,
+              "PR-AUC": 0.49403341288782815
+            },
+            "source": "models/RELIANCE.NS_majority_Target_Direction_metrics.json"
+          },
+          "logistic": {
+            "train": {
+              "Accuracy": 0.5518836748182419,
+              "Balanced Accuracy": 0.5492279173880349,
+              "Precision": 0.5555555555555556,
+              "Recall": 0.6426735218508998,
+              "F1": 0.5959475566150179,
+              "Confusion Matrix": [
+                [
+                  335,
+                  400
+                ],
+                [
+                  278,
+                  500
+                ]
+              ],
+              "ROC-AUC": 0.5716401727786231,
+              "PR-AUC": 0.5822961818584083
+            },
+            "val": {
+              "Accuracy": 0.5159010600706714,
+              "Balanced Accuracy": 0.5129941802127232,
+              "Precision": 0.5454545454545454,
+              "Recall": 0.5562913907284768,
+              "F1": 0.5508196721311476,
+              "Confusion Matrix": [
+                [
+                  62,
+                  70
+                ],
+                [
+                  67,
+                  84
+                ]
+              ],
+              "ROC-AUC": 0.5027593818984548,
+              "PR-AUC": 0.569052999518608
+            },
+            "test": {
+              "Accuracy": 0.4821002386634845,
+              "Balanced Accuracy": 0.48296645702306085,
+              "Precision": 0.4791666666666667,
+              "Recall": 0.5555555555555556,
+              "F1": 0.5145413870246085,
+              "Confusion Matrix": [
+                [
+                  87,
+                  125
+                ],
+                [
+                  92,
+                  115
+                ]
+              ],
+              "ROC-AUC": 0.4752529395679519,
+              "PR-AUC": 0.47674825077808525
+            },
+            "source": "models/RELIANCE.NS_logistic_Target_Direction_metrics.json"
+          },
+          "random_forest": {
+            "train": {
+              "Accuracy": 1.0,
+              "Balanced Accuracy": 1.0,
+              "Precision": 1.0,
+              "Recall": 1.0,
+              "F1": 1.0,
+              "Confusion Matrix": [
+                [
+                  735,
+                  0
+                ],
+                [
+                  0,
+                  778
+                ]
+              ],
+              "ROC-AUC": 1.0,
+              "PR-AUC": 0.9999999999999999
+            },
+            "val": {
+              "Accuracy": 0.5371024734982333,
+              "Balanced Accuracy": 0.5338149709010636,
+              "Precision": 0.5641025641025641,
+              "Recall": 0.5827814569536424,
+              "F1": 0.5732899022801303,
+              "Confusion Matrix": [
+                [
+                  64,
+                  68
+                ],
+                [
+                  63,
+                  88
+                ]
+              ],
+              "ROC-AUC": 0.5680062211519166,
+              "PR-AUC": 0.6122757637667418
+            },
+            "test": {
+              "Accuracy": 0.5250596658711217,
+              "Balanced Accuracy": 0.5250205086136177,
+              "Precision": 0.5192307692307693,
+              "Recall": 0.5217391304347826,
+              "F1": 0.5204819277108433,
+              "Confusion Matrix": [
+                [
+                  112,
+                  100
+                ],
+                [
+                  99,
+                  108
+                ]
+              ],
+              "ROC-AUC": 0.531765563759001,
+              "PR-AUC": 0.5193132228324995
+            },
+            "source": "models/RELIANCE.NS_random_forest_Target_Direction_metrics.json"
+          },
+          "xgboost": {
+            "train": {
+              "Accuracy": 1.0,
+              "Balanced Accuracy": 1.0,
+              "Precision": 1.0,
+              "Recall": 1.0,
+              "F1": 1.0,
+              "Confusion Matrix": [
+                [
+                  735,
+                  0
+                ],
+                [
+                  0,
+                  778
+                ]
+              ],
+              "ROC-AUC": 1.0,
+              "PR-AUC": 1.0
+            },
+            "val": {
+              "Accuracy": 0.558303886925795,
+              "Balanced Accuracy": 0.555112382099137,
+              "Precision": 0.5833333333333334,
+              "Recall": 0.6026490066225165,
+              "F1": 0.5928338762214984,
+              "Confusion Matrix": [
+                [
+                  67,
+                  65
+                ],
+                [
+                  60,
+                  91
+                ]
+              ],
+              "ROC-AUC": 0.5715934176199077,
+              "PR-AUC": 0.5880257250700764
+            },
+            "test": {
+              "Accuracy": 0.522673031026253,
+              "Balanced Accuracy": 0.5226050496764196,
+              "Precision": 0.5169082125603864,
+              "Recall": 0.5169082125603864,
+              "F1": 0.5169082125603864,
+              "Confusion Matrix": [
+                [
+                  112,
+                  100
+                ],
+                [
+                  100,
+                  107
+                ]
+              ],
+              "ROC-AUC": 0.5126241910491295,
+              "PR-AUC": 0.5091737601997817
+            },
+            "source": "models/RELIANCE.NS_xgboost_Target_Direction_metrics.json"
+          }
+        }
+      },
+      "backtest": null,
+      "pending": [
+        "backtest (Phase 4)",
+        "permutation importance"
+      ],
+      "artifacts": {
+        "model": "models/RELIANCE/mlp/20261029_200739_879921/model.pt",
+        "scaler": "models/RELIANCE/mlp/20261029_200739_879921/scaler.joblib",
+        "test_preds": "models/RELIANCE/mlp/20261029_200739_879921/test_preds.csv"
+      }
+    }
+  }
+}

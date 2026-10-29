@@ -59,9 +59,9 @@ class TestLiveInference(unittest.TestCase):
         engine = InferenceEngine(self.config, provider, PROJECT_ROOT)
         return engine.run_live_inference(TICKER, MODEL, now=now)
 
-    # Fixture dates end at 2026-09-11: the committed raw CSVs contain zero-volume RELIANCE
-    # placeholder bars on NSE holidays (2026-09-14, 2026-10-02) with no NIFTY/VIX bar, which
-    # blanks the 50-day NIFTY window for later dates (covered by the holiday test below).
+    # The committed raw CSVs contain zero-volume RELIANCE placeholder bars on NSE holidays
+    # (e.g. 2026-09-14, 2026-10-02) with no NIFTY/VIX bar; align_trading_calendar removes them
+    # (covered by the holiday test below).
 
     def test_valid_market_data_produces_full_schema_in_training_order(self):
         result = self._run("2026-09-11", now=datetime(2026, 9, 11, 17, 0))
@@ -112,12 +112,18 @@ class TestLiveInference(unittest.TestCase):
         self.assertEqual(result["status"], "Error")
         self.assertIn("2026-09-11", result["message"])
 
-    def test_holiday_placeholder_bar_withholds_prediction(self):
-        """A RELIANCE holiday bar with no NIFTY/VIX bar (2026-10-02) leaves the context
-        windows incomplete; the prediction must be withheld, not filled in."""
-        result = self._run("2026-10-06", now=datetime(2026, 10, 6, 17, 0))
-        self.assertEqual(result["status"], "Error")
-        self.assertIn("2026-10-06", result["message"])
+    def test_holiday_placeholder_bar_is_dropped_by_calendar_rule(self):
+        """A zero-volume RELIANCE holiday bar with no NIFTY/VIX bar (2026-10-02) must be
+        removed by align_trading_calendar, giving the same features as data without it."""
+        with_placeholder = self._run("2026-10-06", now=datetime(2026, 10, 6, 17, 0))
+        self.assertEqual(with_placeholder["status"], "Success", with_placeholder.get("message"))
+
+        history = self.reliance.loc[:"2026-10-06"].tail(500).drop(pd.Timestamp("2026-10-02"))
+        context = {"NIFTY": self.nifty.loc[:"2026-10-06"], "VIX": self.vix.loc[:"2026-10-06"]}
+        engine = InferenceEngine(self.config, MockLiveProvider(history, context, datetime(2026, 10, 6, 17, 0)), PROJECT_ROOT)
+        without = engine.run_live_inference(TICKER, MODEL, now=datetime(2026, 10, 6, 17, 0))
+        np.testing.assert_allclose(pd.Series(with_placeholder["latest_features"]).values,
+                                   pd.Series(without["latest_features"]).values, rtol=1e-8, atol=1e-10)
 
 
 if __name__ == '__main__':

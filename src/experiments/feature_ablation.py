@@ -19,6 +19,13 @@ F_GROUPS = {
     "Context": ["NIFTY_Return_1d", "NIFTY_Return_5d", "NIFTY_Vol_20", "NIFTY_Dist_SMA50", "VIX_Level", "VIX_Change_1d"]
 }
 
+SELECTION_METRIC = "ROC-AUC"
+
+
+def selection_path(ticker: str) -> Path:
+    return PROJECT_ROOT / 'reports' / f"{ticker}_feature_selection.json"
+
+
 def get_feature_set(X_cols, level=0):
     """Dynamically build the cumulative feature set while ensuring columns actually exist."""
     cols = list(F_GROUPS["F0_Base"])
@@ -27,78 +34,68 @@ def get_feature_set(X_cols, level=0):
     if level >= 3: cols += F_GROUPS["Volatility"]
     if level >= 4: cols += F_GROUPS["Volume"]
     if level >= 5: cols += F_GROUPS["Context"]
-    
+
     # Filter only columns that actually exist in the dataframe
     return [c for c in cols if c in X_cols]
 
+
 def run_ablation(ticker: str, target_col: str = 'Target_Direction'):
+    """Cumulative feature-group ablation for the MLP, scored on the VALIDATION split only.
+
+    The test split is never evaluated here, so the chosen feature set is not influenced
+    by test performance. Ties on validation ROC-AUC go to the smaller feature set.
+    """
     config = load_config()
     proc_dir = PROJECT_ROOT / config['data'].get('processed_dir', 'data/processed')
     reports_dir = PROJECT_ROOT / 'reports'
-    
-    # Read to get column list
+
     X_full = pd.read_csv(proc_dir / f"{ticker}_X.csv", index_col=0, parse_dates=True)
     all_cols = X_full.columns.tolist()
-    
     trainer = DLTrainer(config, PROJECT_ROOT)
-    
-    results = {}
-    models_to_test = ["mlp", "lstm"]
-    
-    for model_name in models_to_test:
-        results[model_name] = {}
-        for level in range(6):
-            f_name = f"F{level}"
-            feat_cols = get_feature_set(all_cols, level)
-            logger.info(f"=== Starting Ablation: {model_name.upper()} | {f_name} ({len(feat_cols)} features) ===")
-            
-            try:
-                if model_name == "mlp":
-                    metrics = trainer.train_mlp(ticker, target_col=target_col, feature_cols=feat_cols)
-                else:
-                    metrics = trainer.train_lstm(ticker, target_col=target_col, feature_cols=feat_cols)
-                    
-                # We only want to save the test metrics dictionary here to avoid nested clutter
-                # But trainer returns the full JSON dict which is fine.
-                results[model_name][f_name] = metrics
-            except Exception as e:
-                logger.error(f"Failed {model_name} on {f_name}: {e}")
-                results[model_name][f_name] = None
 
-    # Save structured json
-    with open(reports_dir / f"{ticker}_ablation_results.json", "w") as f:
-        json.dump(results, f, indent=4)
-        
-    # Generate Plots
+    results = {}
+    for level in range(6):
+        f_name = f"F{level}"
+        feat_cols = get_feature_set(all_cols, level)
+        logger.info(f"=== Ablation (validation only): MLP | {f_name} ({len(feat_cols)} features) ===")
+        out = trainer.train_mlp(ticker, target_col=target_col, feature_cols=feat_cols, evaluate_test=False)
+        results[f_name] = {"run_id": out["run_id"], "n_features": len(feat_cols),
+                           "features": feat_cols, "val": out["val"]}
+        logger.info(f"{f_name}: val {SELECTION_METRIC} = {out['val'][SELECTION_METRIC]:.4f}")
+
+    best = max(results, key=lambda k: (round(results[k]["val"][SELECTION_METRIC], 6), -results[k]["n_features"]))
+    selection = {
+        "ticker": ticker,
+        "model": "mlp",
+        "selection_split": "validation",
+        "selection_metric": SELECTION_METRIC,
+        "selected_level": best,
+        "selected_features": results[best]["features"],
+        "levels": results,
+    }
+    with open(selection_path(ticker), "w") as f:
+        json.dump(selection, f, indent=4)
+    logger.info(f"Selected {best} ({results[best]['n_features']} features) by validation {SELECTION_METRIC}")
+
     plot_ablation_results(results, reports_dir, ticker)
-    
+    return selection
+
+
 def plot_ablation_results(results, reports_dir, ticker):
-    metrics_to_plot = ["ROC-AUC", "PR-AUC", "F1", "Accuracy", "Precision", "Recall", "Balanced Accuracy"]
-    levels = [f"F{i}" for i in range(6)]
-    
-    for metric in metrics_to_plot:
-        plt.figure(figsize=(10, 6))
-        
-        for model in ["mlp", "lstm"]:
-            y_vals = []
-            for lvl in levels:
-                res = results[model].get(lvl)
-                if res and metric in res:
-                    y_vals.append(res[metric])
-                else:
-                    y_vals.append(np.nan)
-                    
-            plt.plot(levels, y_vals, marker='o', linewidth=2, label=model.upper())
-            
-        plt.title(f'Feature Ablation Impact on {metric}')
-        plt.xlabel('Feature Set (F0=Raw, F5=All)')
-        plt.ylabel(metric)
-        plt.grid(True, linestyle='--', alpha=0.7)
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(reports_dir / f"{ticker}_ablation_{metric}.png")
-        plt.close()
-        logger.info(f"Saved ablation plot for {metric}.")
+    levels = list(results)
+    vals = [results[l]["val"][SELECTION_METRIC] for l in levels]
+    plt.figure(figsize=(10, 6))
+    plt.plot(levels, vals, marker='o', linewidth=2, label="MLP (validation)")
+    plt.axhline(0.5, color='grey', linestyle='--', linewidth=1)
+    plt.title(f'Feature Ablation: Validation {SELECTION_METRIC}')
+    plt.xlabel('Feature Set (F0=Raw, F5=All)')
+    plt.ylabel(f'Validation {SELECTION_METRIC}')
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(reports_dir / f"{ticker}_ablation_val_{SELECTION_METRIC}.png")
+    plt.close()
+
 
 if __name__ == "__main__":
     import sys

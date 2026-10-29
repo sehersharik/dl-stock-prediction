@@ -5,6 +5,28 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+def align_trading_calendar(df: pd.DataFrame, context_dfs: dict = None) -> pd.DataFrame:
+    """Restrict the target series to genuine NSE trading sessions.
+
+    Rule (see docs/learning-notes.md, Phase 3):
+      1. Drop zero-volume placeholder bars (Volume == 0 and High == Low), which the
+         provider emits on market holidays and for some bad sessions.
+      2. If NIFTY context is supplied, keep only dates on which NIFTY also has a bar:
+         the index defines the NSE trading calendar.
+    VIX is not used to define the calendar; a missing VIX day stays NaN in the VIX
+    features and that row is dropped later, without altering the stock's own returns.
+    """
+    placeholder = (df['Volume'] == 0) & (df['High'] == df['Low'])
+    keep = ~placeholder
+    if context_dfs and context_dfs.get('NIFTY') is not None and not context_dfs['NIFTY'].empty:
+        keep &= df.index.isin(context_dfs['NIFTY'].index)
+    dropped = df.index[~keep]
+    if len(dropped):
+        logger.info(f"Calendar alignment dropped {len(dropped)} non-session bars: {[str(d.date()) for d in dropped]}")
+    return df.loc[keep]
+
+
 class FeatureGenerator:
     """
     Calculates technical indicators strictly avoiding lookahead bias.
@@ -16,7 +38,8 @@ class FeatureGenerator:
         self.groups = self.config['features'].get('groups', {})
 
     def generate(self, df: pd.DataFrame, context_dfs: dict = None) -> pd.DataFrame:
-        df = df.copy()
+        use_context = self.groups.get('market_context', True) and context_dfs
+        df = align_trading_calendar(df.copy(), context_dfs if use_context else None)
         initial_rows = len(df)
         
         logger.info("Starting stationary feature generation...")

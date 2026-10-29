@@ -33,12 +33,14 @@ class DLTrainer:
             return "unknown"
             
     def _save_registry(self, run_id, model_name, ticker, target_col, feature_cols, X_train, X_val, X_test, 
-                       seq_length, scaler, model, history, metrics, test_trues, test_preds, test_probs, dl_cfg):
-        
+                       seq_length, scaler, model, history, metrics, test_trues, test_preds, test_probs, dl_cfg,
+                       val_pred_df: pd.DataFrame = None):
+        """Persist a run. test_trues/test_preds/test_probs may be None when the test set was
+        deliberately not evaluated (e.g. during validation-only feature selection)."""
         # Paths
         ticker_clean = ticker.replace(".NS", "")
         registry_dir = self.project_root / 'models' / ticker_clean / model_name / run_id
-        registry_dir.mkdir(parents=True, exist_ok=True)
+        registry_dir.mkdir(parents=True, exist_ok=False)
         pred_dir = self.project_root / 'data' / 'predictions'
         pred_dir.mkdir(parents=True, exist_ok=True)
         
@@ -72,6 +74,11 @@ class DLTrainer:
             json.dump(metadata, f, indent=4)
             
         plot_training_history(history, registry_dir / "training_history.png")
+        if val_pred_df is not None:
+            val_pred_df.assign(Run_ID=run_id).to_csv(registry_dir / "val_preds.csv")
+        if test_trues is None:
+            logger.info(f"Model [{run_id}] saved to registry without test evaluation: {registry_dir}")
+            return
         plot_evaluation_curves(test_trues, test_probs, test_preds, registry_dir, "evaluation")
         
         # Save Predictions with run_id explicitly referencing the authoring model
@@ -92,8 +99,23 @@ class DLTrainer:
             indices.append(X.index[i + seq_length - 1])
         return np.array(Xs), np.array(ys), np.array(indices)
         
-    def train_mlp(self, ticker: str, target_col: str = 'Target_Direction', feature_cols: list = None):
-        run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    def _predict(self, model, loader):
+        probs, trues = [], []
+        with torch.no_grad():
+            for batch_x, batch_y in loader:
+                probs.extend(torch.sigmoid(model(batch_x.to(self.device))).cpu().numpy())
+                trues.extend(batch_y.numpy())
+        probs, trues = np.array(probs).flatten(), np.array(trues).flatten()
+        return trues, (probs >= 0.5).astype(int), probs
+
+    def train_mlp(self, ticker: str, target_col: str = 'Target_Direction', feature_cols: list = None,
+                  evaluate_test: bool = True):
+        """Train the MLP with early stopping on validation loss.
+
+        Returns {"run_id", "val": metrics, "test": metrics or None}. With evaluate_test=False the
+        test split is never scored, so the run can be used for model/feature selection.
+        """
+        run_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         seed_everything(42)
         proc_dir = self.project_root / self.config['data'].get('processed_dir', 'data/processed')
         
@@ -184,22 +206,19 @@ class DLTrainer:
         model.load_state_dict(best_model_state)
         model.eval()
         
-        test_preds, test_probs, test_trues = [], [], []
-        with torch.no_grad():
-            for batch_x, batch_y in test_loader:
-                batch_x = batch_x.to(self.device)
-                logits = model(batch_x)
-                probs = torch.sigmoid(logits).cpu().numpy()
-                test_probs.extend(probs)
-                test_preds.extend((probs >= 0.5).astype(int))
-                test_trues.extend(batch_y.numpy())
-                
-        test_preds, test_probs, test_trues = np.array(test_preds).flatten(), np.array(test_probs).flatten(), np.array(test_trues).flatten()
-        metrics = evaluate_classification(test_trues, test_preds, test_probs)
+        val_trues, val_preds, val_probs = self._predict(model, val_loader)
+        metrics = {"val": evaluate_classification(val_trues, val_preds, val_probs), "test": None}
+        val_pred_df = pd.DataFrame({'True': val_trues, 'Pred': val_preds, 'Prob': val_probs}, index=X_val.index)
         
-        self._save_registry(run_id, "mlp", ticker, target_col, feature_cols, X_train, X_val, X_test, 1, scaler, model, history, metrics, test_trues, test_preds, test_probs, dl_cfg)
+        test_trues = test_preds = test_probs = None
+        if evaluate_test:
+            test_trues, test_preds, test_probs = self._predict(model, test_loader)
+            metrics["test"] = evaluate_classification(test_trues, test_preds, test_probs)
         
-        return metrics
+        self._save_registry(run_id, "mlp", ticker, target_col, feature_cols, X_train, X_val, X_test, 1, scaler, model, history, metrics, test_trues, test_preds, test_probs, dl_cfg,
+                            val_pred_df=val_pred_df)
+        
+        return {"run_id": run_id, **metrics}
 
     def train_lstm(self, ticker: str, target_col: str = 'Target_Direction', feature_cols: list = None):
         run_id = datetime.now().strftime("%Y%m%d_%H%M%S")

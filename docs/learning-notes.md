@@ -71,3 +71,54 @@ On NSE holidays, the saved Reliance data contains a fake "flat" bar (no volume, 
 
 ### Interview soundbite
 "The live bug was a key-name mismatch, but the more interesting part was what the tests uncovered: a 1-minute bar leaking into daily features, and a holiday data issue that had quietly removed 16% of the training set. I fixed the live path, added parity tests against the training features, and flagged the data issue for retraining rather than hiding it."
+
+---
+
+## Phase 3: Cleaning the data and re-checking the headline number
+
+### 1. Which days count as trading days (the calendar rule)
+**Rule:** a Reliance bar is kept only if NIFTY 50 also has a bar that day (the index defines the NSE trading calendar), and zero-volume "flat" bars (Volume = 0 and High = Low) are always dropped. A missing India VIX day does *not* remove the Reliance session; it only blanks the two VIX features for that row and the next.
+
+The rule lives in `align_trading_calendar()` in `src/features/generator.py`. Training, targets and live inference all call it, so they cannot disagree.
+
+**The 11 dates it removes** (the 10 Reliance-only dates found in Phase 2, plus one bad bar):
+
+| Date | What the Reliance bar is | Why it goes |
+|---|---|---|
+| 2026-01-15, 2026-05-01, 2026-05-28, 2026-06-26, 2026-09-14, 2026-10-02 | Zero-volume flat placeholder; no NIFTY or VIX bar | Market closed; the provider padded the series |
+| 2025-03-18 | Zero-volume flat bar on a normal trading day (NIFTY and VIX traded) | Bad data for Reliance that day |
+| 2019-10-27 (Sun), 2020-11-14 (Sat) | Real but short Diwali Muhurat sessions; no NIFTY or VIX bar | Not regular sessions; no market context available |
+| 2018-01-01, 2019-01-01 | **Real sessions** with normal volume; VIX has a bar but yfinance's NIFTY does not | **Trade-off:** keeping them would blank the 50-day NIFTY window and drop ~50 rows. Dropping them costs one session each |
+
+**Why VIX doesn't define the calendar:** VIX is missing on 17 ordinary trading days (e.g. 2021-01-22). If those days were removed from Reliance, the next day's "1-day return" would really be a 2-day return. NIFTY's gaps are much rarer and are mostly real non-sessions.
+
+### 2. A target bug the cleaning exposed
+The label "did the price go up tomorrow?" was computed *after* the feature rows were filtered. So for the row just before a gap, "tomorrow" was the next row that survived. That was 3 sessions later in most cases, and **50 or even 88 sessions later** around holidays. 19 old labels were like this, 5 of them in the test set. The fix computes the next-day return on the trading calendar first, then attaches it to the feature rows. A check confirms every label now equals the true next-session return.
+
+*Interview angle:* "A label that silently means 'two months later' instead of 'tomorrow' would never show up as an error, only as slightly odd results. I found it by asking how many sessions each label actually spans."
+
+### 3. Fixed date boundaries instead of percentages
+The split used to be "first 70% of rows / next 15% / last 15%". Cleaning added rows, so percentages would have moved the boundaries and changed the test period. The split now uses fixed dates in `config/settings.yaml`: train ≤ 2023-10-19, validation ≤ 2024-12-20, test 2024-12-23 → 2026-09-10. These are the same boundaries as the old run, so the comparison is fair on dates.
+
+| Split | Old rows | New rows | Why it changed |
+|---|---|---|---|
+| Train | 1,323 | 1,513 | Post-holiday gaps are filled in |
+| Validation | 283 | 283 | No long gaps in this period |
+| Test | 284 | 419 | The 2026 holidays had removed ~135 test days |
+
+### 4. Choosing features without looking at the test set
+The ablation now trains the MLP on F0…F5 and compares **validation** ROC-AUC only. The test set is never scored during this step, and a test checks that. Validation picked **F5 (all 27 features)**, the same set as before, with F3 second (0.5375 vs 0.5473). So the old choice wasn't wrong. What was wrong was the *evidence* for it.
+
+### 5. One source of truth for every number
+`reports/metrics.json` (built by `python main.py metrics`) holds both runs with full provenance: data, split, feature selection, every metric, backtest and artifact paths. The dashboard, the live engine (model, scaler and feature list) and the README all read the run named `active_run`. The README is rendered from `docs/README.template.md`, and a test fails if they drift. Building it exposed more README numbers that no code produces: backtest volatility 11.45% (really 13.77%), Buy & Hold Sharpe 0.27 (really 0.31), the LSTM row's precision/recall/F1, and the train/validation UP shares.
+
+### 6. The result
+| Test-set metric | Old run (284 days) | New run (419 days) |
+|---|---|---|
+| ROC-AUC | 0.5676 | **0.5363** |
+| Balanced accuracy | 57.39% | **52.82%** |
+| F1 | 0.5399 | **0.4513** |
+
+The headline number fell by about 0.03 ROC-AUC. The new score sits close to the validation score (0.547), while the old one was well *above* its validation score (0.539). That's the pattern you'd expect when a test number has been used to make choices, or was simply a lucky sample. Random Forest (0.532) and XGBoost (0.513) are close behind on test, and both beat the MLP on validation.
+
+*Interview soundbite:* "When I cleaned the data and stopped using the test set for decisions, the headline ROC-AUC dropped from 0.568 to 0.536. I'd rather report the smaller honest number, which is close to chance and close to simple baselines, than the bigger one I can't defend."

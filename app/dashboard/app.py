@@ -291,37 +291,25 @@ def load_backend_data():
     if raw_vix.exists():
         data['raw_vix'] = pd.read_csv(raw_vix, index_col=0, parse_dates=True).sort_index()
 
-    # 3. Model Out-of-Sample Metrics
-    mp = PROJECT_ROOT / f"models/{TICKER}_{MODEL}_Target_Direction_metrics.json"
-    if mp.exists():
-        with open(mp) as f:
-            data['model_metrics'] = json.load(f)
+    # 3. Reported results: the active run in reports/metrics.json is the single source
+    #    for every metric on this dashboard (built by `python main.py metrics`).
+    with open(PROJECT_ROOT / "reports/metrics.json") as f:
+        metrics_doc = json.load(f)
+    run = {"run_id": metrics_doc["active_run"], **metrics_doc["runs"][metrics_doc["active_run"]]}
+    data['run'] = run
+    data['model_metrics'] = run['metrics']['mlp']['test']
+    bt = run.get('backtest')
+    data['backtest'] = bt
+    data['backtest_metrics'] = bt['cost_grid'][bt['default_index']] if bt else {}
 
-    # 4. Verified Backtest Metrics & Equity Curve
-    btp = PROJECT_ROOT / f"reports/{TICKER}_{MODEL}_backtest_metrics.json"
-    if btp.exists():
-        with open(btp) as f:
-            data['backtest_metrics'] = json.load(f)
+    artifacts = run['artifacts']
+    def _artifact(key, reader):
+        path = PROJECT_ROOT / artifacts[key] if key in artifacts else None
+        return reader(path) if path is not None and path.exists() else None
 
-    btc = PROJECT_ROOT / f"reports/{TICKER}_{MODEL}_backtest_curve.csv"
-    if btc.exists():
-        data['backtest_curve'] = pd.read_csv(btc, index_col=0, parse_dates=True)
-
-    # 5. Explainability / Permutation Importance
-    pp = PROJECT_ROOT / f"reports/{TICKER}_{MODEL}_perm_importance.csv"
-    if pp.exists():
-        data['explainability'] = pd.read_csv(pp)
-
-    # 6. Feature Ablation
-    ap = PROJECT_ROOT / f"reports/{TICKER}_ablation_results.json"
-    if ap.exists():
-        with open(ap) as f:
-            data['ablation'] = json.load(f)
-
-    # 7. Test Predictions
-    preds_p = PROJECT_ROOT / f"data/predictions/{TICKER}_{MODEL}_Target_Direction_test_preds.csv"
-    if preds_p.exists():
-        data['test_preds'] = pd.read_csv(preds_p, index_col=0, parse_dates=True)
+    data['test_preds'] = _artifact('test_preds', lambda p: pd.read_csv(p, index_col=0, parse_dates=True))
+    data['backtest_curve'] = _artifact('backtest_curve', lambda p: pd.read_csv(p, index_col=0, parse_dates=True))
+    data['explainability'] = _artifact('perm_importance', pd.read_csv)
 
     return data
 
@@ -395,9 +383,12 @@ with tab_overview:
     
     # Extract price & market data fallback
     raw_df = backend_data.get('raw_prices', pd.DataFrame())
-    latest_raw_date = raw_df.index[-1] if not raw_df.empty else datetime.now()
-    latest_raw_close = raw_df['Close'].iloc[-1] if not raw_df.empty else 1274.00
-    prev_raw_close = raw_df['Close'].iloc[-2] if len(raw_df) >= 2 else latest_raw_close
+    if len(raw_df) < 2:
+        st.error("Historical price data (data/raw) is missing; the dashboard cannot be displayed.")
+        st.stop()
+    latest_raw_date = raw_df.index[-1]
+    latest_raw_close = raw_df['Close'].iloc[-1]
+    prev_raw_close = raw_df['Close'].iloc[-2]
     daily_change_pct = ((latest_raw_close / prev_raw_close) - 1) * 100 if prev_raw_close else 0.0
     
     # Check if user triggered live refresh
@@ -443,23 +434,28 @@ with tab_overview:
             st.warning(f"Live market provider status: {live_res.get('message')}. Displaying verified model results.")
 
     # Determine Active Prediction Data (Live or Out-of-Sample Test Prediction Fallback)
-    test_preds = backend_data.get('test_preds', pd.DataFrame())
+    test_preds = backend_data.get('test_preds')
+    if test_preds is None or test_preds.empty:
+        test_preds = pd.DataFrame()
     
     if live_res and live_res.get("status") == "Success":
         pred_direction = live_res.get('predicted_direction', 'UP').split('/')[0]
-        prob_up = live_res.get('direction_prob', 0.50)
+        prob_up = live_res['direction_prob']
         prob_down = 1.0 - prob_up
         display_price = live_res.get('price', latest_raw_close)
         display_timestamp = str(live_res.get('feature_date', live_res.get('timestamp')))[:10]
         data_source_label = "Live model run on completed session"
     else:
         # Out-of-sample latest test prediction
-        latest_pred_row = test_preds.iloc[-1] if not test_preds.empty else None
-        prob_up = float(latest_pred_row['Prob']) if latest_pred_row is not None else 0.518
+        if test_preds.empty:
+            st.error("Saved test predictions for the active run are missing; no prediction can be shown.")
+            st.stop()
+        latest_pred_row = test_preds.iloc[-1]
+        prob_up = float(latest_pred_row['Prob'])
         prob_down = 1.0 - prob_up
         pred_direction = "UP" if prob_up >= 0.50 else "DOWN"
         display_price = latest_raw_close
-        display_timestamp = latest_raw_date.strftime('%Y-%m-%d')
+        display_timestamp = test_preds.index[-1].strftime('%Y-%m-%d')
         data_source_label = "Verified historical model snapshot"
 
     st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
@@ -540,9 +536,9 @@ with tab_overview:
     st.markdown('<div class="section-heading">Why this prediction?</div>', unsafe_allow_html=True)
     st.markdown('<div class="section-subheading">Key indicators that influenced the model\'s estimate, ranked by feature importance on out-of-sample data.</div>', unsafe_allow_html=True)
     
-    exp_data = backend_data.get('explainability', pd.DataFrame())
+    exp_data = backend_data.get('explainability')
     
-    if not exp_data.empty:
+    if exp_data is not None and not exp_data.empty:
         top_features = exp_data.head(5)
         col_f1, col_f2 = st.columns(2)
         
@@ -568,7 +564,7 @@ with tab_overview:
                 with col_f2:
                     st.markdown(card_html, unsafe_allow_html=True)
     else:
-        st.info("Feature importance data loading...")
+        st.info(f"Feature importance has not been computed for run {backend_data['run']['run_id']} yet.")
 
     st.markdown("""
     <div style="font-size: 0.78rem; color: #64748B; margin-top: 0.4rem; font-style: italic;">
@@ -652,12 +648,15 @@ with tab_overview:
     raw_nifty = backend_data.get('raw_nifty', pd.DataFrame())
     raw_vix = backend_data.get('raw_vix', pd.DataFrame())
 
-    nifty_close = raw_nifty['Close'].iloc[-1] if not raw_nifty.empty else 24800.0
-    nifty_prev = raw_nifty['Close'].iloc[-2] if len(raw_nifty) >= 2 else nifty_close
+    if len(raw_nifty) < 2 or len(raw_vix) < 2:
+        st.error("NIFTY 50 / India VIX history (data/raw) is missing; market context cannot be displayed.")
+        st.stop()
+    nifty_close = raw_nifty['Close'].iloc[-1]
+    nifty_prev = raw_nifty['Close'].iloc[-2]
     nifty_chg = ((nifty_close / nifty_prev) - 1) * 100 if nifty_prev else 0.0
 
-    vix_close = raw_vix['Close'].iloc[-1] if not raw_vix.empty else 13.5
-    vix_prev = raw_vix['Close'].iloc[-2] if len(raw_vix) >= 2 else vix_close
+    vix_close = raw_vix['Close'].iloc[-1]
+    vix_prev = raw_vix['Close'].iloc[-2]
     vix_chg = ((vix_close / vix_prev) - 1) * 100 if vix_prev else 0.0
 
     col_ctx1, col_ctx2 = st.columns(2)
@@ -690,14 +689,21 @@ with tab_overview:
 
     # ── MODEL RELIABILITY ("How reliable is the model?") ──────────────────────
     st.markdown('<div class="section-heading">How reliable is the model?</div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-subheading">Out-of-sample evaluation on 284 held-out trading days (2024–2026) that were not used to train the model. Note: the feature set was chosen by comparing scores on this same period, so these figures are likely somewhat optimistic.</div>', unsafe_allow_html=True)
+    run = backend_data['run']
+    test_split = run['split']['test']
+    test_years = f"{test_split['start'][:4]}–{test_split['end'][:4]}"
+    if run['feature_selection']['split'] == 'test':
+        selection_note = "Note: the feature set was chosen by comparing scores on this same period, so these figures are likely somewhat optimistic."
+    else:
+        selection_note = f"The feature set was chosen on the {run['feature_selection']['split']} period; this test period was evaluated once."
+    st.markdown(f'<div class="section-subheading">Out-of-sample evaluation on {test_split["n"]} held-out trading days ({test_years}) that were not used to train the model. {selection_note}</div>', unsafe_allow_html=True)
     
-    model_metrics = backend_data.get('model_metrics', {})
+    model_metrics = backend_data['model_metrics']
     
-    roc_auc_val = model_metrics.get('ROC-AUC', 0.5676)
-    bal_acc_val = model_metrics.get('Balanced Accuracy', 0.5739)
-    prec_val = model_metrics.get('Precision', 0.5868)
-    f1_val = model_metrics.get('F1', 0.5399)
+    roc_auc_val = model_metrics['ROC-AUC']
+    bal_acc_val = model_metrics['Balanced Accuracy']
+    prec_val = model_metrics['Precision']
+    f1_val = model_metrics['F1']
 
     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
     
@@ -737,72 +743,75 @@ with tab_overview:
         </div>
         """, unsafe_allow_html=True)
 
-    st.markdown("""
+    st.markdown(f"""
     <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 0.9rem 1.1rem; margin-top: 1rem; font-size: 0.88rem; color: #475569;">
-      <strong>Plain-English Verdict:</strong> These results indicate a modest predictive signal (ROC-AUC 0.5676) rather than highly accurate forecasting. Whether it is reliably better than chance has not yet been tested. Performance can vary across market conditions.
+      <strong>Plain-English Verdict:</strong> These results indicate a modest predictive signal (ROC-AUC {roc_auc_val:.4f}) rather than highly accurate forecasting. Whether it is reliably better than chance has not yet been tested. Performance can vary across market conditions.
     </div>
     """, unsafe_allow_html=True)
 
     # ── HISTORICAL BACKTEST ───────────────────────────────────────────────────
     st.markdown('<div class="section-heading">Historical Strategy Performance</div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-subheading">Vectorized simulation on held-out test data (2024–2026), including 0.10% transaction cost + 0.05% slippage per trade.</div>', unsafe_allow_html=True)
+    bt = backend_data.get('backtest')
+    if not bt:
+        st.info(f"The historical backtest for run {run['run_id']} has not been produced yet, so no strategy results are shown.")
+    else:
+        bt_metrics = backend_data['backtest_metrics']
+        bt_curve = backend_data.get('backtest_curve')
+        st.markdown(f'<div class="section-subheading">Vectorized simulation on held-out test data ({test_years}), including {bt_metrics["transaction_cost"]:.2%} transaction cost + {bt_metrics["slippage"]:.2%} slippage per position change.</div>', unsafe_allow_html=True)
 
-    bt_metrics = backend_data.get('backtest_metrics', {})
-    bt_curve = backend_data.get('backtest_curve', pd.DataFrame())
+        strat_ret = bt_metrics['Strategy_Total_Return']
+        bnh_ret = bt_metrics['BnH_Total_Return']
+        sharpe_ratio = bt_metrics['Strategy_Sharpe']
+        max_dd = bt_metrics['Strategy_Max_Drawdown']
+        trades_count = bt_metrics['Total_Trades']
+        win_rate = bt_metrics['Win_Rate']
 
-    strat_ret = bt_metrics.get('Strategy_Total_Return', 0.2380)
-    bnh_ret = bt_metrics.get('BnH_Total_Return', 0.0513)
-    sharpe_ratio = bt_metrics.get('Strategy_Sharpe', 1.4492)
-    max_dd = bt_metrics.get('Strategy_Max_Drawdown', -0.0527)
-    trades_count = bt_metrics.get('Total_Trades', 64)
-    win_rate = bt_metrics.get('Win_Rate', 0.5537)
+        col_b1, col_b2, col_b3, col_b4, col_b5, col_b6 = st.columns(6)
 
-    col_b1, col_b2, col_b3, col_b4, col_b5, col_b6 = st.columns(6)
+        with col_b1:
+            st.markdown(f'<div class="stat-tile"><div class="card-label">STRATEGY RETURN</div><div class="stat-tile-val" style="color:#16A34A;">{strat_ret:+.2%}</div><div class="stat-tile-sub">Simulated model gain</div></div>', unsafe_allow_html=True)
+        with col_b2:
+            st.markdown(f'<div class="stat-tile"><div class="card-label">BUY & HOLD</div><div class="stat-tile-val">{bnh_ret:+.2%}</div><div class="stat-tile-sub">Benchmark return</div></div>', unsafe_allow_html=True)
+        with col_b3:
+            st.markdown(f'<div class="stat-tile"><div class="card-label">SHARPE RATIO</div><div class="stat-tile-val">{sharpe_ratio:.2f}</div><div class="stat-tile-sub">Risk-adjusted return</div></div>', unsafe_allow_html=True)
+        with col_b4:
+            st.markdown(f'<div class="stat-tile"><div class="card-label">MAX DRAWDOWN</div><div class="stat-tile-val" style="color:#DC2626;">{max_dd:.2%}</div><div class="stat-tile-sub">Peak-to-trough decline</div></div>', unsafe_allow_html=True)
+        with col_b5:
+            st.markdown(f'<div class="stat-tile"><div class="card-label">WIN RATE</div><div class="stat-tile-val">{win_rate:.1%}</div><div class="stat-tile-sub">Profitable in-market days</div></div>', unsafe_allow_html=True)
+        with col_b6:
+            st.markdown(f'<div class="stat-tile"><div class="card-label">TOTAL TRADES</div><div class="stat-tile-val">{int(trades_count)}</div><div class="stat-tile-sub">Position changes</div></div>', unsafe_allow_html=True)
 
-    with col_b1:
-        st.markdown(f'<div class="stat-tile"><div class="card-label">STRATEGY RETURN</div><div class="stat-tile-val" style="color:#16A34A;">+{strat_ret:.2%}</div><div class="stat-tile-sub">Simulated model gain</div></div>', unsafe_allow_html=True)
-    with col_b2:
-        st.markdown(f'<div class="stat-tile"><div class="card-label">BUY & HOLD</div><div class="stat-tile-val">+{bnh_ret:.2%}</div><div class="stat-tile-sub">Benchmark return</div></div>', unsafe_allow_html=True)
-    with col_b3:
-        st.markdown(f'<div class="stat-tile"><div class="card-label">SHARPE RATIO</div><div class="stat-tile-val">{sharpe_ratio:.2f}</div><div class="stat-tile-sub">Risk-adjusted return</div></div>', unsafe_allow_html=True)
-    with col_b4:
-        st.markdown(f'<div class="stat-tile"><div class="card-label">MAX DRAWDOWN</div><div class="stat-tile-val" style="color:#DC2626;">{max_dd:.2%}</div><div class="stat-tile-sub">Peak-to-trough decline</div></div>', unsafe_allow_html=True)
-    with col_b5:
-        st.markdown(f'<div class="stat-tile"><div class="card-label">WIN RATE</div><div class="stat-tile-val">{win_rate:.1%}</div><div class="stat-tile-sub">Profitable trade days</div></div>', unsafe_allow_html=True)
-    with col_b6:
-        st.markdown(f'<div class="stat-tile"><div class="card-label">TOTAL TRADES</div><div class="stat-tile-val">{int(trades_count)}</div><div class="stat-tile-sub">Position changes</div></div>', unsafe_allow_html=True)
+        if bt_curve is not None and not bt_curve.empty:
+            fig_bt = go.Figure()
+            fig_bt.add_trace(go.Scatter(
+                x=bt_curve.index, y=bt_curve['Strategy_Equity'],
+                name=f'Model Strategy ({strat_ret:+.2%})', line=dict(color='#2563EB', width=2.5)
+            ))
+            fig_bt.add_trace(go.Scatter(
+                x=bt_curve.index, y=bt_curve['BnH_Equity'],
+                name=f'Buy & Hold Benchmark ({bnh_ret:+.2%})', line=dict(color='#94A3B8', width=1.5, dash='dash')
+            ))
+            fig_bt.update_layout(
+                height=340,
+                margin=dict(l=10, r=10, t=10, b=10),
+                template="plotly_white",
+                hovermode="x unified",
+                yaxis=dict(tickprefix="₹", showgrid=True, gridcolor="#F1F5F9"),
+                legend=dict(orientation="h", y=1.06, x=0.01)
+            )
+            st.plotly_chart(fig_bt, width='stretch')
 
-    if not bt_curve.empty:
-        fig_bt = go.Figure()
-        fig_bt.add_trace(go.Scatter(
-            x=bt_curve.index, y=bt_curve['Strategy_Equity'],
-            name='Model Strategy (+23.80%)', line=dict(color='#2563EB', width=2.5)
-        ))
-        fig_bt.add_trace(go.Scatter(
-            x=bt_curve.index, y=bt_curve['BnH_Equity'],
-            name='Buy & Hold Benchmark (+5.13%)', line=dict(color='#94A3B8', width=1.5, dash='dash')
-        ))
-        fig_bt.update_layout(
-            height=340,
-            margin=dict(l=10, r=10, t=10, b=10),
-            template="plotly_white",
-            hovermode="x unified",
-            yaxis=dict(tickprefix="₹", showgrid=True, gridcolor="#F1F5F9"),
-            legend=dict(orientation="h", y=1.06, x=0.01)
-        )
-        st.plotly_chart(fig_bt, width='stretch')
+        # ── TRANSACTION COST SENSITIVITY TABLE ─────────────────────────────────
+        st.markdown('<div style="font-size: 0.95rem; font-weight: 700; color: #0F172A; margin-top: 1rem;">Transaction Cost Sensitivity (Friction Robustness)</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-size: 0.83rem; color: #64748B; margin-bottom: 0.6rem;">Stress-testing the strategy across {len(bt["cost_grid"])} cost regimes (cost + slippage charged on every position change):</div>', unsafe_allow_html=True)
 
-    # ── TRANSACTION COST SENSITIVITY TABLE ─────────────────────────────────────
-    st.markdown('<div style="font-size: 0.95rem; font-weight: 700; color: #0F172A; margin-top: 1rem;">Transaction Cost Sensitivity (Friction Robustness)</div>', unsafe_allow_html=True)
-    st.markdown('<div style="font-size: 0.83rem; color: #64748B; margin-bottom: 0.6rem;">Stress-testing the strategy across four transaction cost regimes:</div>', unsafe_allow_html=True)
-    
-    sensitivity_df = pd.DataFrame([
-        {"Friction Scenario": "Zero Costs (0.00%)", "Strategy Return": "+36.25%", "Sharpe Ratio": "2.06", "Max Drawdown": "-4.79%", "Win Rate": "58.68%"},
-        {"Friction Scenario": "Official Default (0.15%)", "Strategy Return": "+23.80%", "Sharpe Ratio": "1.45", "Max Drawdown": "-5.27%", "Win Rate": "55.37%"},
-        {"Friction Scenario": "High Friction (0.25%)", "Strategy Return": "+16.13%", "Sharpe Ratio": "1.04", "Max Drawdown": "-6.80%", "Win Rate": "54.55%"},
-        {"Friction Scenario": "Severe Stress (0.30%)", "Strategy Return": "+12.47%", "Sharpe Ratio": "0.83", "Max Drawdown": "-8.08%", "Win Rate": "52.89%"},
-    ])
-    st.dataframe(sensitivity_df, width='stretch', hide_index=True)
+        sensitivity_df = pd.DataFrame([
+            {"Cost per Position Change": f"{g['cost_per_position_change']:.2%}" + (" (default)" if i == bt['default_index'] else ""),
+             "Strategy Return": f"{g['Strategy_Total_Return']:+.2%}", "Sharpe Ratio": f"{g['Strategy_Sharpe']:.2f}",
+             "Max Drawdown": f"{g['Strategy_Max_Drawdown']:.2%}", "Win Rate (per day)": f"{g['Win_Rate']:.2%}"}
+            for i, g in enumerate(bt['cost_grid'])
+        ])
+        st.dataframe(sensitivity_df, width='stretch', hide_index=True)
 
 
 # ==============================================================================
@@ -824,18 +833,18 @@ with tab_analysis:
     - **F5 (Market Context):** F4 + NIFTY 50 Returns/Volatility + India VIX Level/Change (27 features)
     """)
     
-    ab_data = backend_data.get('ablation', {})
-    if 'mlp' in ab_data:
-        levels = ['F0', 'F1', 'F2', 'F3', 'F4', 'F5']
-        mlp_roc = [ab_data['mlp'].get(lvl, {}).get('ROC-AUC', np.nan) for lvl in levels]
-        mlp_acc = [ab_data['mlp'].get(lvl, {}).get('Accuracy', np.nan) for lvl in levels]
-        mlp_f1 = [ab_data['mlp'].get(lvl, {}).get('F1', np.nan) for lvl in levels]
-        
-        lstm_roc = [ab_data.get('lstm', {}).get(lvl, {}).get('ROC-AUC', np.nan) for lvl in levels]
+    selection = backend_data['run']['feature_selection']
+    split_label = "Test" if selection['split'] == 'test' else "Validation"
+    if selection.get('levels'):
+        levels = list(selection['levels'])
+        mlp_roc = [selection['levels'][lvl]['ROC-AUC'] for lvl in levels]
+        lstm_levels = selection.get('lstm_levels', {})
         
         fig_abl = go.Figure()
         fig_abl.add_trace(go.Scatter(x=levels, y=mlp_roc, mode='lines+markers', name='Small MLP (ROC-AUC)', line=dict(color='#2563EB', width=2.5)))
-        fig_abl.add_trace(go.Scatter(x=levels, y=lstm_roc, mode='lines+markers', name='LSTM (ROC-AUC)', line=dict(color='#94A3B8', width=2, dash='dot')))
+        if lstm_levels:
+            lstm_roc = [lstm_levels.get(lvl, {}).get('ROC-AUC', np.nan) for lvl in levels]
+            fig_abl.add_trace(go.Scatter(x=levels, y=lstm_roc, mode='lines+markers', name='LSTM (ROC-AUC)', line=dict(color='#94A3B8', width=2, dash='dot')))
         fig_abl.add_hline(y=0.50, line_dash='dash', line_color='#E2E8F0', annotation_text='Random Baseline (0.50)')
         
         fig_abl.update_layout(
@@ -843,19 +852,25 @@ with tab_analysis:
             template="plotly_white",
             title="Model ROC-AUC Progression across Feature Sets",
             xaxis_title="Feature Level",
-            yaxis_title="Test ROC-AUC Score"
+            yaxis_title=f"{split_label} ROC-AUC Score"
         )
         st.plotly_chart(fig_abl, width='stretch')
 
-        st.markdown("""
+        best_single = max(mlp_roc[:-1])
+        if selection['split'] == 'test':
+            selection_caveat = "These comparisons were made on the test period, which was then used to choose the final feature set."
+        else:
+            selection_caveat = f"These comparisons use the {selection['split']} period only; the test period played no part in choosing the feature set."
+        st.markdown(f"""
         <div class="explanation-banner">
-          <strong>Key Research Takeaway:</strong> Single-stock indicators alone (F0–F4) achieved maximum out-of-sample ROC-AUC of ~0.514. Incorporating <strong>Market Context (F5)</strong> — NIFTY index movements and India VIX volatility — produced the largest improvement, to <strong>ROC-AUC 0.5676</strong>. These comparisons were made on the test period, which was then used to choose the final feature set.
+          <strong>Key Research Takeaway:</strong> Single-stock indicators alone ({levels[0]}–{levels[-2]}) reached a best {split_label.lower()} ROC-AUC of {best_single:.4f}. Incorporating <strong>Market Context ({levels[-1]})</strong> — NIFTY index movements and India VIX volatility — gave <strong>ROC-AUC {mlp_roc[-1]:.4f}</strong>; the selected set is <strong>{selection['selected_level']}</strong>. {selection_caveat}
         </div>
         """, unsafe_allow_html=True)
 
     # Confusion Matrix Display
     st.markdown('### 2. Out-of-Sample Confusion Matrix')
-    cm_data = [[92, 50], [71, 71]] # Actual test confusion matrix
+    cm_data = backend_data['model_metrics']['Confusion Matrix']  # [[TN, FP], [FN, TP]] on the test split
+    (cm_tn, cm_fp), (cm_fn, cm_tp) = cm_data
     
     col_cm1, col_cm2 = st.columns([1, 2])
     with col_cm1:
@@ -871,14 +886,14 @@ with tab_analysis:
         st.plotly_chart(fig_cm, width='stretch')
         
     with col_cm2:
-        st.markdown("""
-        **Confusion Matrix Analysis (284 Test Days):**
-        - **True Negatives (92 days):** Correctly identified Down/Cash days.
-        - **True Positives (71 days):** Correctly identified Up days.
-        - **False Positives (50 days):** Predicted Up when market was Down.
-        - **False Negatives (71 days):** Predicted Down when market was Up.
+        st.markdown(f"""
+        **Confusion Matrix Analysis ({cm_tn + cm_fp + cm_fn + cm_tp} Test Days):**
+        - **True Negatives ({cm_tn} days):** Correctly identified Down/Cash days.
+        - **True Positives ({cm_tp} days):** Correctly identified Up days.
+        - **False Positives ({cm_fp} days):** Predicted Up when market was Down.
+        - **False Negatives ({cm_fn} days):** Predicted Down when market was Up.
         
-        *The model maintains a conservative stance (Precision 58.7%), preferring to hold cash when directional signals are ambiguous.*
+        *The model predicted UP on {(cm_tp + cm_fp) / (cm_tn + cm_fp + cm_fn + cm_tp):.1%} of test days (precision {backend_data['model_metrics']['Precision']:.1%}), holding cash otherwise.*
         """)
 
 
@@ -892,8 +907,8 @@ with tab_methodology:
     st.markdown("""
     ### 1. Data Ingestion & Time Horizon
     - **Dataset Horizon:** 10 Years (October 2016 – October 2026).
-    - **Raw Observations:** 2,475 raw daily trading sessions.
-    - **Aligned Stationary Dataset:** 1,890 clean observations after 200-day indicator warm-up.
+    - **Raw Observations:** __RAW_SESSIONS__ raw daily trading sessions.
+    - **Aligned Stationary Dataset:** __ROWS__ clean observations after 200-day indicator warm-up (calendar rule: __CAL_RULE__).
     - **Assets Ingested:** RELIANCE.NS (Target asset), NIFTY 50 (`^NSEI`), India VIX (`^INDIAVIX`).
 
     ### 2. 27 Scale-Invariant Stationary Features
@@ -914,7 +929,7 @@ with tab_methodology:
     - **Normalization:** `StandardScaler` fitted **exclusively** on Training split $X_{train}$.
 
     ### 4. Validation & Leakage Prevention
-    - **Chronological Split:** 70% Train (1,323 samples | 2017–2023), 15% Validation (283 samples | 2023–2024), 15% Test (284 samples | 2024–2026), held out from training but used to compare feature sets.
+    - **Chronological Split:** __SPLIT__
     - **No Lookahead Bias:** Features at time $t$ use data available strictly at or before $t$. Signals at $t$ determine positions for $t \to t+1$ returns.
 
     ---
@@ -923,7 +938,16 @@ with tab_methodology:
     In financial direction prediction, accuracy alone is a misleading metric due to market regime shifts and class imbalances. For example, during a strong bull run, a naive model predicting "UP" every day can achieve 65%+ accuracy while possessing zero true predictive capacity. 
 
     This research uses **ROC-AUC** (Receiver Operating Characteristic Area Under Curve) and **Balanced Accuracy** as primary metrics because they evaluate the model's true ability to separate upward vs downward probability distributions independently of arbitrary decision thresholds.
-    """)
+    """
+        .replace("__RAW_SESSIONS__", f"{run['data']['raw_sessions']:,}")
+        .replace("__ROWS__", f"{run['data']['rows']:,}")
+        .replace("__CAL_RULE__", run['data']['calendar_rule'])
+        .replace("__SPLIT__", "; ".join(
+            f"{name.capitalize()} {run['split'][key]['n']:,} samples ({run['split'][key]['start']} to {run['split'][key]['end']})"
+            for key, name in (("train", "train"), ("val", "validation"), ("test", "test")))
+            + f" — {run['split']['method']}."
+            + (" The test period was also used to compare feature sets." if run['feature_selection']['split'] == 'test' else ""))
+    )
 
 
 # ==============================================================================

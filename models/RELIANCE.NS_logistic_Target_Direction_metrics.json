@@ -2,63 +2,109 @@
     "model_name": "logistic",
     "ticker": "RELIANCE.NS",
     "target": "Target_Direction",
+    "feature_list": [
+        "Return_1d",
+        "Return_5d",
+        "Return_10d",
+        "Return_20d",
+        "HL_Spread",
+        "CO_Spread",
+        "Dist_SMA20",
+        "Dist_SMA50",
+        "Dist_SMA200",
+        "SMA20_50_Ratio",
+        "SMA50_200_Ratio",
+        "RSI_14",
+        "MACD_Ratio",
+        "MACD_Hist_Ratio",
+        "ROC_12",
+        "ATR_Ratio",
+        "Rolling_Vol_20",
+        "BB_PctB",
+        "BB_Width",
+        "Vol_Change",
+        "Vol_Ratio_20",
+        "NIFTY_Return_1d",
+        "NIFTY_Return_5d",
+        "NIFTY_Vol_20",
+        "NIFTY_Dist_SMA50",
+        "VIX_Level",
+        "VIX_Change_1d"
+    ],
+    "periods": {
+        "train": [
+            "2017-07-27",
+            "2023-10-19",
+            1513
+        ],
+        "val": [
+            "2023-10-20",
+            "2024-12-20",
+            283
+        ],
+        "test": [
+            "2024-12-23",
+            "2026-09-10",
+            419
+        ]
+    },
     "metrics": {
         "train": {
-            "Accuracy": 0.564625850340136,
-            "Balanced Accuracy": 0.5628041807702864,
-            "Precision": 0.5693333333333334,
-            "Recall": 0.6279411764705882,
-            "F1": 0.5972027972027972,
+            "Accuracy": 0.5518836748182419,
+            "Balanced Accuracy": 0.5492279173880349,
+            "Precision": 0.5555555555555556,
+            "Recall": 0.6426735218508998,
+            "F1": 0.5959475566150179,
             "Confusion Matrix": [
                 [
-                    320,
-                    323
+                    335,
+                    400
                 ],
                 [
-                    253,
-                    427
+                    278,
+                    500
                 ]
             ],
-            "ROC-AUC": 0.5863278748513403,
-            "PR-AUC": 0.5995316304153502
+            "ROC-AUC": 0.5716401727786231,
+            "PR-AUC": 0.5822961818584083
         },
         "val": {
-            "Accuracy": 0.49823321554770317,
-            "Balanced Accuracy": 0.49428571428571433,
-            "Precision": 0.525,
-            "Recall": 0.56,
-            "F1": 0.5419354838709678,
+            "Accuracy": 0.5159010600706714,
+            "Balanced Accuracy": 0.5129941802127232,
+            "Precision": 0.5454545454545454,
+            "Recall": 0.5562913907284768,
+            "F1": 0.5508196721311476,
             "Confusion Matrix": [
                 [
-                    57,
-                    76
+                    62,
+                    70
                 ],
                 [
-                    66,
+                    67,
                     84
                 ]
             ],
-            "ROC-AUC": 0.5064661654135338,
-            "PR-AUC": 0.5629949899885363
+            "ROC-AUC": 0.5027593818984548,
+            "PR-AUC": 0.569052999518608
         },
         "test": {
-            "Accuracy": 0.4823943661971831,
-            "Balanced Accuracy": 0.4823943661971831,
-            "Precision": 0.48091603053435117,
-            "Recall": 0.44366197183098594,
-            "F1": 0.46153846153846156,
+            "Accuracy": 0.4821002386634845,
+            "Balanced Accuracy": 0.48296645702306085,
+            "Precision": 0.4791666666666667,
+            "Recall": 0.5555555555555556,
+            "F1": 0.5145413870246085,
             "Confusion Matrix": [
                 [
-                    74,
-                    68
+                    87,
+                    125
                 ],
                 [
-                    79,
-                    63
+                    92,
+                    115
                 ]
             ],
-            "ROC-AUC": 0.5069926601864709,
-            "PR-AUC": 0.5155207352936573
+            "ROC-AUC": 0.4752529395679519,
+            "PR-AUC": 0.47674825077808525
         }
     }
 }

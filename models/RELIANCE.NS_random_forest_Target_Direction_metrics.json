@@ -2,6 +2,52 @@
     "model_name": "random_forest",
     "ticker": "RELIANCE.NS",
     "target": "Target_Direction",
+    "feature_list": [
+        "Return_1d",
+        "Return_5d",
+        "Return_10d",
+        "Return_20d",
+        "HL_Spread",
+        "CO_Spread",
+        "Dist_SMA20",
+        "Dist_SMA50",
+        "Dist_SMA200",
+        "SMA20_50_Ratio",
+        "SMA50_200_Ratio",
+        "RSI_14",
+        "MACD_Ratio",
+        "MACD_Hist_Ratio",
+        "ROC_12",
+        "ATR_Ratio",
+        "Rolling_Vol_20",
+        "BB_PctB",
+        "BB_Width",
+        "Vol_Change",
+        "Vol_Ratio_20",
+        "NIFTY_Return_1d",
+        "NIFTY_Return_5d",
+        "NIFTY_Vol_20",
+        "NIFTY_Dist_SMA50",
+        "VIX_Level",
+        "VIX_Change_1d"
+    ],
+    "periods": {
+        "train": [
+            "2017-07-27",
+            "2023-10-19",
+            1513
+        ],
+        "val": [
+            "2023-10-20",
+            "2024-12-20",
+            283
+        ],
+        "test": [
+            "2024-12-23",
+            "2026-09-10",
+            419
+        ]
+    },
     "metrics": {
         "train": {
             "Accuracy": 1.0,
@@ -11,54 +57,54 @@
             "F1": 1.0,
             "Confusion Matrix": [
                 [
-                    643,
+                    735,
                     0
                 ],
                 [
                     0,
-                    680
+                    778
                 ]
             ],
             "ROC-AUC": 1.0,
-            "PR-AUC": 0.9999999999999998
+            "PR-AUC": 0.9999999999999999
         },
         "val": {
-            "Accuracy": 0.558303886925795,
-            "Balanced Accuracy": 0.5569172932330827,
-            "Precision": 0.5838926174496645,
-            "Recall": 0.58,
-            "F1": 0.5819397993311036,
+            "Accuracy": 0.5371024734982333,
+            "Balanced Accuracy": 0.5338149709010636,
+            "Precision": 0.5641025641025641,
+            "Recall": 0.5827814569536424,
+            "F1": 0.5732899022801303,
             "Confusion Matrix": [
                 [
-                    71,
-                    62
+                    64,
+                    68
                 ],
                 [
                     63,
-                    87
+                    88
                 ]
             ],
-            "ROC-AUC": 0.5724812030075188,
-            "PR-AUC": 0.5924181485638479
+            "ROC-AUC": 0.5680062211519166,
+            "PR-AUC": 0.6122757637667418
         },
         "test": {
-            "Accuracy": 0.5,
-            "Balanced Accuracy": 0.5,
-            "Precision": 0.5,
-            "Recall": 0.4154929577464789,
-            "F1": 0.45384615384615384,
+            "Accuracy": 0.5250596658711217,
+            "Balanced Accuracy": 0.5250205086136177,
+            "Precision": 0.5192307692307693,
+            "Recall": 0.5217391304347826,
+            "F1": 0.5204819277108433,
             "Confusion Matrix": [
                 [
-                    83,
-                    59
+                    112,
+                    100
                 ],
                 [
-                    83,
-                    59
+                    99,
+                    108
                 ]
             ],
-            "ROC-AUC": 0.5113320769688553,
-            "PR-AUC": 0.5147456218349429
+            "ROC-AUC": 0.531765563759001,
+            "PR-AUC": 0.5193132228324995
         }
     }
 }

@@ -34,3 +34,11 @@ models:
     batch_size: 64
     learning_rate: 0.001
     weight_decay: 0.001
+
+training:
+  # Fixed chronological boundaries (inclusive). Frozen to match run 20261007_003042 so the
+  # test period stays 2024-12-23 .. 2026-09-10 regardless of how many rows the data has.
+  split_dates:
+    train_end: "2023-10-19"
+    val_end: "2024-12-20"
+    test_end: "2026-09-10"

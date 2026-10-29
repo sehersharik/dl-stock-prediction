@@ -19,13 +19,15 @@ class Backtester:
         self.transaction_cost = bt_cfg.get('transaction_cost', 0.001) # 0.1% cost
         self.slippage = bt_cfg.get('slippage', 0.0005) # 0.05% slippage
         
-    def run(self, ticker: str, model_name: str, target_col: str = 'Target_Direction', threshold: float = 0.5):
+    def run(self, ticker: str, model_name: str, target_col: str = 'Target_Direction', threshold: float = 0.5,
+            pred_path: Path = None, save: bool = True):
         logger.info(f"Initializing Backtest for {ticker} using {model_name}...")
         logger.warning("DISCLAIMER: This is an experimental financial ML research system.")
         logger.warning("Historical backtest performance does NOT guarantee future returns. Do NOT trade this.")
         
         # Load out-of-sample predictions
-        pred_path = self.project_root / 'data' / 'predictions' / f"{ticker}_{model_name}_{target_col}_test_preds.csv"
+        if pred_path is None:
+            pred_path = self.project_root / 'data' / 'predictions' / f"{ticker}_{model_name}_{target_col}_test_preds.csv"
         if not pred_path.exists():
             logger.error(f"Prediction file not found: {pred_path}")
             return
@@ -74,8 +76,9 @@ class Backtester:
         df['BnH_Drawdown'] = (df['BnH_Equity'] - df['BnH_Peak']) / df['BnH_Peak']
         
         metrics = self._calculate_metrics(df)
-        self._save_results(df, metrics, ticker, model_name)
-        self._plot_results(df, ticker, model_name)
+        if save:
+            self._save_results(df, metrics, ticker, model_name)
+            self._plot_results(df, ticker, model_name)
         
         logger.info(f"=== BACKTEST RESULTS: {model_name.upper()} ===")
         logger.info(f"Total Return: {metrics['Strategy_Total_Return']:.2%}")
@@ -131,7 +134,10 @@ class Backtester:
             "BnH_Sharpe": float(bnh_sharpe),
             "BnH_Max_Drawdown": float(bnh_max_dd),
             "Win_Rate": float(win_rate),
-            "Total_Trades": trades
+            "Total_Trades": trades,
+            "In_Market_Days": int(len(active_days)),
+            "Cash_Days": int(days - len(active_days)),
+            "Winning_Days": int((active_days['Strategy_Return'] > 0).sum())
         }
         
     def _save_results(self, df: pd.DataFrame, metrics: dict, ticker: str, model_name: str):

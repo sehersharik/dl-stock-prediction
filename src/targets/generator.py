@@ -21,11 +21,13 @@ class TargetGenerator:
         if 'Close' not in df_prices.columns:
             raise ValueError("Price dataframe must contain 'Close' price to compute future targets.")
             
-        close = df_prices['Close'].reindex(df_features.index)
-        
         # Target Calculation
-        # shift(-1) moves tomorrow's close onto today's row to compute the future return
-        next_day_return = close.shift(-1) / close - 1
+        # shift(-1) moves tomorrow's close onto today's row to compute the future return.
+        # It is applied on the price calendar *before* reindexing to the feature rows, so a
+        # gap in the feature matrix can never turn "next day" into a multi-session return.
+        # df_prices should already be restricted to trading sessions (align_trading_calendar).
+        close = df_prices['Close'].sort_index()
+        next_day_return = (close.shift(-1) / close - 1).reindex(df_features.index)
         
         y = pd.DataFrame(index=df_features.index)
         y['Next_Day_Return'] = next_day_return

@@ -19,16 +19,33 @@ class TimeSeriesSplitter:
         training_config = self.config.get('training', {})
         self.train_pct = training_config.get('train_split', 0.70)
         self.val_pct = training_config.get('val_split', 0.15)
-        
+        # Optional fixed date boundaries (inclusive); when set they replace the percentages
+        self.split_dates = {k: pd.Timestamp(v) for k, v in training_config.get('split_dates', {}).items()}
+
     def split_train_val_test(self, X: pd.DataFrame, y: pd.DataFrame) -> tuple:
         """
         Chronologically splits data into Train, Val, Test.
+        Uses fixed date boundaries from config['training']['split_dates'] when present,
+        otherwise the train/val percentages.
         Returns: (X_train, y_train), (X_val, y_val), (X_test, y_test)
         """
+        if self.split_dates:
+            idx = X.index
+            train_m = idx <= self.split_dates['train_end']
+            val_m = (idx > self.split_dates['train_end']) & (idx <= self.split_dates['val_end'])
+            test_m = idx > self.split_dates['val_end']
+            if 'test_end' in self.split_dates:
+                test_m &= idx <= self.split_dates['test_end']
+            X_train, y_train = X[train_m], y[train_m]
+            X_val, y_val = X[val_m], y[val_m]
+            X_test, y_test = X[test_m], y[test_m]
+            self.validate_chronology(X_train, X_val, X_test)
+            return (X_train, y_train), (X_val, y_val), (X_test, y_test)
+
         n = len(X)
         train_end = int(n * self.train_pct)
         val_end = int(n * (self.train_pct + self.val_pct))
-        
+
         X_train, y_train = X.iloc[:train_end], y.iloc[:train_end]
         X_val, y_val = X.iloc[train_end:val_end], y.iloc[train_end:val_end]
         X_test, y_test = X.iloc[val_end:], y.iloc[val_end:]

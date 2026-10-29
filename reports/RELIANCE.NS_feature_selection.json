@@ -1,0 +1,287 @@
+{
+    "ticker": "RELIANCE.NS",
+    "model": "mlp",
+    "selection_split": "validation",
+    "selection_metric": "ROC-AUC",
+    "selected_level": "F5",
+    "selected_features": [
+        "Return_1d",
+        "Return_5d",
+        "Return_10d",
+        "Return_20d",
+        "HL_Spread",
+        "CO_Spread",
+        "Dist_SMA20",
+        "Dist_SMA50",
+        "Dist_SMA200",
+        "SMA20_50_Ratio",
+        "SMA50_200_Ratio",
+        "RSI_14",
+        "MACD_Ratio",
+        "MACD_Hist_Ratio",
+        "ROC_12",
+        "ATR_Ratio",
+        "Rolling_Vol_20",
+        "BB_PctB",
+        "BB_Width",
+        "Vol_Change",
+        "Vol_Ratio_20",
+        "NIFTY_Return_1d",
+        "NIFTY_Return_5d",
+        "NIFTY_Vol_20",
+        "NIFTY_Dist_SMA50",
+        "VIX_Level",
+        "VIX_Change_1d"
+    ],
+    "levels": {
+        "F0": {
+            "run_id": "20261029_200706_751931",
+            "n_features": 6,
+            "features": [
+                "Return_1d",
+                "Return_5d",
+                "Return_10d",
+                "Return_20d",
+                "HL_Spread",
+                "CO_Spread"
+            ],
+            "val": {
+                "Accuracy": 0.48056537102473496,
+                "Balanced Accuracy": 0.4808348384507325,
+                "Precision": 0.5142857142857142,
+                "Recall": 0.4768211920529801,
+                "F1": 0.4948453608247423,
+                "Confusion Matrix": [
+                    [
+                        64,
+                        68
+                    ],
+                    [
+                        79,
+                        72
+                    ]
+                ],
+                "ROC-AUC": 0.4811860325105358,
+                "PR-AUC": 0.5286324884750533
+            }
+        },
+        "F1": {
+            "run_id": "20261029_200710_833391",
+            "n_features": 11,
+            "features": [
+                "Return_1d",
+                "Return_5d",
+                "Return_10d",
+                "Return_20d",
+                "HL_Spread",
+                "CO_Spread",
+                "Dist_SMA20",
+                "Dist_SMA50",
+                "Dist_SMA200",
+                "SMA20_50_Ratio",
+                "SMA50_200_Ratio"
+            ],
+            "val": {
+                "Accuracy": 0.5053003533568905,
+                "Balanced Accuracy": 0.5059201284366848,
+                "Precision": 0.539568345323741,
+                "Recall": 0.4966887417218543,
+                "F1": 0.5172413793103449,
+                "Confusion Matrix": [
+                    [
+                        68,
+                        64
+                    ],
+                    [
+                        76,
+                        75
+                    ]
+                ],
+                "ROC-AUC": 0.4969395946217138,
+                "PR-AUC": 0.5151974003945298
+            }
+        },
+        "F2": {
+            "run_id": "20261029_200712_760948",
+            "n_features": 15,
+            "features": [
+                "Return_1d",
+                "Return_5d",
+                "Return_10d",
+                "Return_20d",
+                "HL_Spread",
+                "CO_Spread",
+                "Dist_SMA20",
+                "Dist_SMA50",
+                "Dist_SMA200",
+                "SMA20_50_Ratio",
+                "SMA50_200_Ratio",
+                "RSI_14",
+                "MACD_Ratio",
+                "MACD_Hist_Ratio",
+                "ROC_12"
+            ],
+            "val": {
+                "Accuracy": 0.5017667844522968,
+                "Balanced Accuracy": 0.5007023881196067,
+                "Precision": 0.5342465753424658,
+                "Recall": 0.5165562913907285,
+                "F1": 0.5252525252525253,
+                "Confusion Matrix": [
+                    [
+                        64,
+                        68
+                    ],
+                    [
+                        73,
+                        78
+                    ]
+                ],
+                "ROC-AUC": 0.49774232390126427,
+                "PR-AUC": 0.5128424523840818
+            }
+        },
+        "F3": {
+            "run_id": "20261029_200714_597523",
+            "n_features": 19,
+            "features": [
+                "Return_1d",
+                "Return_5d",
+                "Return_10d",
+                "Return_20d",
+                "HL_Spread",
+                "CO_Spread",
+                "Dist_SMA20",
+                "Dist_SMA50",
+                "Dist_SMA200",
+                "SMA20_50_Ratio",
+                "SMA50_200_Ratio",
+                "RSI_14",
+                "MACD_Ratio",
+                "MACD_Hist_Ratio",
+                "ROC_12",
+                "ATR_Ratio",
+                "Rolling_Vol_20",
+                "BB_PctB",
+                "BB_Width"
+            ],
+            "val": {
+                "Accuracy": 0.5159010600706714,
+                "Balanced Accuracy": 0.4915462572747341,
+                "Precision": 0.5286885245901639,
+                "Recall": 0.8543046357615894,
+                "F1": 0.6531645569620254,
+                "Confusion Matrix": [
+                    [
+                        17,
+                        115
+                    ],
+                    [
+                        22,
+                        129
+                    ]
+                ],
+                "ROC-AUC": 0.5375275938189845,
+                "PR-AUC": 0.6020186461529824
+            }
+        },
+        "F4": {
+            "run_id": "20261029_200715_429784",
+            "n_features": 21,
+            "features": [
+                "Return_1d",
+                "Return_5d",
+                "Return_10d",
+                "Return_20d",
+                "HL_Spread",
+                "CO_Spread",
+                "Dist_SMA20",
+                "Dist_SMA50",
+                "Dist_SMA200",
+                "SMA20_50_Ratio",
+                "SMA50_200_Ratio",
+                "RSI_14",
+                "MACD_Ratio",
+                "MACD_Hist_Ratio",
+                "ROC_12",
+                "ATR_Ratio",
+                "Rolling_Vol_20",
+                "BB_PctB",
+                "BB_Width",
+                "Vol_Change",
+                "Vol_Ratio_20"
+            ],
+            "val": {
+                "Accuracy": 0.49469964664310956,
+                "Balanced Accuracy": 0.5050421432871763,
+                "Precision": 0.5408163265306123,
+                "Recall": 0.3509933774834437,
+                "F1": 0.42570281124497994,
+                "Confusion Matrix": [
+                    [
+                        87,
+                        45
+                    ],
+                    [
+                        98,
+                        53
+                    ]
+                ],
+                "ROC-AUC": 0.5024081878386515,
+                "PR-AUC": 0.5298722312299133
+            }
+        },
+        "F5": {
+            "run_id": "20261029_200716_611380",
+            "n_features": 27,
+            "features": [
+                "Return_1d",
+                "Return_5d",
+                "Return_10d",
+                "Return_20d",
+                "HL_Spread",
+                "CO_Spread",
+                "Dist_SMA20",
+                "Dist_SMA50",
+                "Dist_SMA200",
+                "SMA20_50_Ratio",
+                "SMA50_200_Ratio",
+                "RSI_14",
+                "MACD_Ratio",
+                "MACD_Hist_Ratio",
+                "ROC_12",
+                "ATR_Ratio",
+                "Rolling_Vol_20",
+                "BB_PctB",
+                "BB_Width",
+                "Vol_Change",
+                "Vol_Ratio_20",
+                "NIFTY_Return_1d",
+                "NIFTY_Return_5d",
+                "NIFTY_Vol_20",
+                "NIFTY_Dist_SMA50",
+                "VIX_Level",
+                "VIX_Change_1d"
+            ],
+            "val": {
+                "Accuracy": 0.519434628975265,
+                "Balanced Accuracy": 0.526791089704997,
+                "Precision": 0.5675675675675675,
+                "Recall": 0.41721854304635764,
+                "F1": 0.48091603053435117,
+                "Confusion Matrix": [
+                    [
+                        84,
+                        48
+                    ],
+                    [
+                        88,
+                        63
+                    ]
+                ],
+                "ROC-AUC": 0.5473108569135059,
+                "PR-AUC": 0.5984120554797864
+            }
+        }
+    }
+}

@@ -9,8 +9,7 @@ from zoneinfo import ZoneInfo
 from src.features.generator import FeatureGenerator
 from src.data.live_provider import LiveDataProvider
 from src.models.dl_models import ConfigurableMLP
-from sklearn.preprocessing import StandardScaler
-from src.evaluation.splitter import TimeSeriesSplitter
+from src.evaluation.metrics_registry import active_run, load_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -54,19 +53,14 @@ class InferenceEngine:
         self.feature_version = "v2.0.0"
         
     def _load_artifacts(self, ticker: str, model_name: str):
-        models_dir = self.project_root / 'models'
-        proc_dir = self.project_root / self.config['data'].get('processed_dir', 'data/processed')
-        
-        # Load chronological data to refit identical scaler (matches exact training preprocessing)
-        X_full = pd.read_csv(proc_dir / f"{ticker}_X.csv", index_col=0, parse_dates=True)
-        y_full = pd.read_csv(proc_dir / f"{ticker}_y.csv", index_col=0, parse_dates=True)['Target_Direction']
-        
-        self.expected_features = X_full.columns.tolist()
-        
-        splitter = TimeSeriesSplitter(self.config)
-        (X_train, y_train), _, _ = splitter.split_train_val_test(X_full, y_full)
-        self.scaler = StandardScaler()
-        self.scaler.fit(X_train)
+        # The active run in reports/metrics.json names the model, its fitted scaler and its
+        # feature list, so live predictions always use the run whose metrics are displayed.
+        run = active_run(load_metrics(self.project_root / "reports" / "metrics.json"))
+        if run["model"]["type"] != model_name:
+            raise ValueError(f"Active run {run['run_id']} is a {run['model']['type']} model, not {model_name}")
+        self.run_id = run["run_id"]
+        self.expected_features = run["model"]["feature_list"]
+        self.scaler = joblib.load(self.project_root / run["artifacts"]["scaler"])
         
         # Fetch live lookback data for the target ticker (needs 2y for SMA_200 warmup)
         try:
@@ -106,7 +100,7 @@ class InferenceEngine:
             layer_dims=layers,
             dropout=dropout
         ).to(self.device)
-        model_path = models_dir / f"{ticker}_{model_name}_Target_Direction.pt"
+        model_path = self.project_root / run["artifacts"]["model"]
         self.direction_model.load_state_dict(torch.load(model_path, map_location=self.device))
         self.direction_model.eval()
 
@@ -222,6 +216,7 @@ class InferenceEngine:
                 "ticker": ticker,
                 "model_version": self.model_version,
                 "feature_version": self.feature_version,
+                "run_id": self.run_id,
                 "direction_prob": dir_prob,
                 "predicted_direction": direction,
                 "risk_prob": None,

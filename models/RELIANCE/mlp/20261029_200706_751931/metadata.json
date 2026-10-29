@@ -1,0 +1,67 @@
+{
+    "run_id": "20261029_200706_751931",
+    "model_type": "mlp",
+    "ticker": "RELIANCE.NS",
+    "target": "Target_Direction",
+    "feature_set": "Count: 6",
+    "feature_list": [
+        "Return_1d",
+        "Return_5d",
+        "Return_10d",
+        "Return_20d",
+        "HL_Spread",
+        "CO_Spread"
+    ],
+    "training_date": "2026-10-29T20:07:10.441461",
+    "training_period": [
+        "2017-07-27 00:00:00",
+        "2023-10-19 00:00:00"
+    ],
+    "validation_period": [
+        "2023-10-20 00:00:00",
+        "2024-12-20 00:00:00"
+    ],
+    "test_period": [
+        "2024-12-23 00:00:00",
+        "2026-09-10 00:00:00"
+    ],
+    "sequence_length": 1,
+    "scaler_path": "/Users/sehersharik/Downloads/dl-stock-prediction/models/RELIANCE/mlp/20261029_200706_751931/scaler.joblib",
+    "random_seed": 42,
+    "hyperparameters": {
+        "type": "mlp",
+        "layers": [
+            32,
+            16
+        ],
+        "dropout": 0.2,
+        "use_batch_norm": false,
+        "epochs": 60,
+        "batch_size": 64,
+        "learning_rate": 0.001,
+        "weight_decay": 0.001
+    },
+    "metrics": {
+        "val": {
+            "Accuracy": 0.48056537102473496,
+            "Balanced Accuracy": 0.4808348384507325,
+            "Precision": 0.5142857142857142,
+            "Recall": 0.4768211920529801,
+            "F1": 0.4948453608247423,
+            "Confusion Matrix": [
+                [
+                    64,
+                    68
+                ],
+                [
+                    79,
+                    72
+                ]
+            ],
+            "ROC-AUC": 0.4811860325105358,
+            "PR-AUC": 0.5286324884750533
+        },
+        "test": null
+    },
+    "git_commit": "b877ccade1a33985b3d1bb4d9680d525acac5d48"
+}
