@@ -19,6 +19,7 @@ from src.backtesting.engine import Backtester
 from src.evaluation.metrics import evaluate_classification
 from src.evaluation.splitter import TimeSeriesSplitter
 from src.evaluation.uncertainty import bootstrap, circular_shift_test
+from src.evaluation import calibration
 from src.experiments.feature_ablation import get_feature_set
 from src.features.generator import align_trading_calendar
 from src.models.dl_models import ConfigurableMLP
@@ -78,6 +79,17 @@ def chance_statement(run: dict) -> str:
     verdict = "is distinguishable from" if a["excludes_null"] else "is <strong>not</strong> distinguishable from"
     return (f"The 95% block-bootstrap interval for ROC-AUC is [{lo:.3f}, {hi:.3f}], so on this test set the model {verdict} "
             f"random guessing (0.5).")
+
+
+def confidence_statement(run: dict) -> str:
+    """Plain sentence on how confident the model's probabilities are (from the calibration block)."""
+    c = run.get("calibration")
+    if not c:
+        return ""
+    t = c["splits"]["test"]
+    return (f"The model is barely confident: {t['share_within_0.45_0.55']:.1%} of test probabilities lie between 0.45 and 0.55 "
+            f"(range {t['prob_min']:.3f}–{t['prob_max']:.3f}), and its Brier score ({t['brier']:.4f}) is almost identical to always "
+            f"predicting the training UP share ({t['brier_reference']:.4f}).")
 
 
 def _rel(path: Path) -> str:
@@ -195,6 +207,39 @@ def _uncertainty_block(run_dir: Path, test_index: pd.DatetimeIndex) -> dict:
             "chance_test": {n: circular_shift_test(y, *arrays[n]) for n in arrays}}
 
 
+def _sequence_block(run_dir: Path, test_index: pd.DatetimeIndex) -> dict:
+    """LSTM/GRU runs (python main.py sequence-models) vs the MLP on the same test days."""
+    path = PROJECT_ROOT / "reports" / f"{TICKER}_sequence_models.json"
+    if not path.exists():
+        return None
+    seq = json.loads(path.read_text())
+    mlp = pd.read_csv(run_dir / "test_preds.csv", index_col=0, parse_dates=True)
+    y = mlp["True"].astype(int).values
+    arrays = {"MLP": (mlp["Prob"].values, mlp["Pred"].astype(int).values)}
+    for r in seq["runs"]:
+        d = pd.read_csv(PROJECT_ROOT / "models" / "RELIANCE" / r["cell"] / r["run_id"] / "test_preds.csv", index_col=0, parse_dates=True)
+        if not d.index.equals(test_index) or not (d["True"].astype(int).values == y).all():
+            raise ValueError(f"{r['name']} test predictions are not aligned with the MLP's")
+        arrays[r["name"]] = (d["Prob"].values, d["Pred"].astype(int).values)
+    return {**{k: seq[k] for k in ("configs_fixed_in_advance", "architecture", "early_stopping")},
+            "runs": [{k: r[k] for k in ("name", "cell", "seq_length", "run_id", "epochs_run", "val", "test")} for r in seq["runs"]],
+            "bootstrap": bootstrap(y, arrays, reference="MLP", n_boot=5000, mean_block=10.0),
+            "chance_test": {n: circular_shift_test(y, *a) for n, a in arrays.items() if n != "MLP"}}
+
+
+def _calibration_block(run_dir: Path, train_up_share: float) -> dict:
+    """Reliability, Brier and log loss on validation and test (descriptive; nothing fitted)."""
+    results, probs = {}, {}
+    for split, fname in (("validation", "val_preds.csv"), ("test", "test_preds.csv")):
+        d = pd.read_csv(run_dir / fname, index_col=0)
+        results[split] = calibration.summarize(d["True"].values, d["Prob"].values, train_up_share)
+        probs[split] = d["Prob"].values
+    fig = run_dir / "reliability_diagram.png"
+    calibration.plot_reliability(results, probs, fig, f"MLP reliability (run {run_dir.name})")
+    return {"reference": f"constant forecast = training UP share ({train_up_share:.4f})", "binning": "5 equal-count bins",
+            "fitted": False, "splits": results, "figure": _rel(fig)}
+
+
 def _baselines(models_dir: Path, names: list, feature_list: list = None) -> dict:
     out = {}
     for name in names:
@@ -294,6 +339,8 @@ def _registry_run_entry(run_id: str, config: dict) -> dict:
                     "baselines": _baselines(PROJECT_ROOT / "models", ["majority", "logistic", "random_forest", "xgboost"], features)},
         "backtest": _backtest_block(run_dir / "test_preds.csv", config, run_id),
         "uncertainty": _uncertainty_block(run_dir, Xte.index),
+        "sequence_models": _sequence_block(run_dir, Xte.index),
+        "calibration": _calibration_block(run_dir, float(ytr.mean())),
         **({"threshold_band": json.loads(band.read_text())} if band.exists() and json.loads(band.read_text())["run_id"] == run_id else {}),
         "artifacts": {"model": _rel(run_dir / "model.pt"), "scaler": _rel(run_dir / "scaler.joblib"),
                       "test_preds": _rel(run_dir / "test_preds.csv"),

@@ -41,18 +41,20 @@ class ConfigurableMLP(nn.Module):
 
 class ConfigurableLSTM(nn.Module):
     """
-    Long Short-Term Memory (LSTM) for sequential financial modeling.
+    Recurrent network (LSTM, or GRU with cell="gru") for sequential financial modeling.
     Uses compact dimensional sizing [32, 16] to prevent parameter explosion.
     """
-    def __init__(self, input_dim: int, lstm_dims: list = [32, 16], dense_dims: list = [16], dropout: float = 0.2):
+    def __init__(self, input_dim: int, lstm_dims: list = [32, 16], dense_dims: list = [16], dropout: float = 0.2,
+                 cell: str = "lstm"):
         super(ConfigurableLSTM, self).__init__()
         
+        rnn = {"lstm": nn.LSTM, "gru": nn.GRU}[cell]
         self.lstm_layers = nn.ModuleList()
         in_size = input_dim
         
         for hidden_size in lstm_dims:
             self.lstm_layers.append(
-                nn.LSTM(input_size=in_size, hidden_size=hidden_size, batch_first=True)
+                rnn(input_size=in_size, hidden_size=hidden_size, batch_first=True)
             )
             in_size = hidden_size
             
@@ -73,7 +75,7 @@ class ConfigurableLSTM(nn.Module):
     def forward(self, x):
         out = x
         for lstm in self.lstm_layers:
-            out, (hn, cn) = lstm(out)
+            out, _ = lstm(out)
             out = self.dropout(out)
             
         last_time_step = out[:, -1, :]

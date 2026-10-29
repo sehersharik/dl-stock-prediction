@@ -208,3 +208,79 @@ So the band fixes the cost problem but not the signal problem. 9 trades, chosen 
 
 ### Interview soundbite
 "I put block-bootstrap confidence intervals on the test metrics because daily predictions are autocorrelated. Every interval included 0.5, and the MLP couldn't be separated from a Random Forest. A no-trade band cut costs from 18% to under 3%, but it never beat buy-and-hold on validation. The honest conclusion is that I couldn't find a reliable, tradeable next-day signal for Reliance with these features."
+
+---
+
+## Phase 6: Do sequence models (LSTM, GRU) help?
+
+### The idea
+The MLP sees one day at a time: the 27 features for today. An **LSTM** or **GRU** reads the last *N* days in order, so in principle it can pick up patterns that unfold over time. A GRU is a slightly simpler cousin of the LSTM, with fewer parameters.
+
+### Keeping the comparison fair
+- **Decided in advance:** LSTM and GRU, each with a 10-day and a 20-day lookback. Same small architecture for all four, no tuning.
+- **Same inputs and splits:** same 27 features, same fixed date boundaries, scaler fitted on training rows only.
+- **Early stopping on validation only.** Each model scored the test set exactly once.
+- **Same test days:** each window ends on the day it predicts (earlier days in the window are inputs only), so all models are judged on the same 419 days. That makes the bootstrap differences "paired".
+
+### Results
+| Model | Val ROC-AUC | Test ROC-AUC (95% CI) | vs MLP |
+|---|---|---|---|
+| MLP | 0.547 | 0.536 (0.481–0.591) | — |
+| LSTM 10d | 0.508 | 0.503 (0.457–0.549) | −0.034, CI includes 0 |
+| LSTM 20d | 0.516 | 0.502 (0.455–0.547) | −0.035, CI includes 0 |
+| GRU 10d | 0.511 | 0.533 (0.487–0.579) | −0.003, CI includes 0 |
+| GRU 20d | 0.511 | 0.508 (0.462–0.553) | −0.028, CI includes 0 |
+
+**Plain reading:** none of the sequence models beats the MLP, and none has a ROC-AUC clearly above chance. They're not kept. The README records this as a negative result.
+
+### The tempting false positive
+GRU 10d's *balanced accuracy* interval on test (50.4–58.6%) just excludes 50%. It's tempting to say "the GRU works!". Three reasons not to:
+1. On **validation** it scored 47.5% balanced accuracy, *worse than a coin*. A real signal would show up in both periods.
+2. **Multiple testing:** 14 intervals have been checked against 0.5 so far. At 95% confidence, about 0.7 of them should "succeed" by luck even if no model has any skill. After a Bonferroni correction (0.05 / 14 ≈ 0.004), its p = 0.018 isn't significant.
+3. Switching to it *because* of its test score would be choosing a model on the test set, the exact mistake fixed in Phase 3.
+
+### Why more complex models didn't help
+With about 1,500 training days and a signal this weak, a model that can represent more patterns mainly learns more noise. Early stopping kicked in after 11–22 epochs, a sign that validation loss stopped improving almost immediately.
+
+### Interview soundbite
+"I compared LSTM and GRU against the MLP under identical conditions: same features, same splits, early stopping on validation, test scored once. None of them beat the MLP, and none was clearly above chance. One GRU's test balanced accuracy looked significant, but it was below chance on validation and doesn't survive a multiple-comparison correction, so I reported it as noise rather than cherry-picking it."
+
+---
+
+## Phase 7: How confident is the model? (calibration)
+
+### What calibration means
+If a model says "60% chance of UP" on 100 different days, about 60 of those days should actually go up. A **reliability diagram** checks this: group days by predicted probability and plot the predicted value against the share of days that really went up. Perfect calibration falls on the diagonal.
+
+Two summary scores:
+- **Brier score:** average of (probability − outcome)². Always saying 0.5 scores 0.25, and lower is better.
+- **Log loss:** punishes confident wrong answers heavily. A coin flip scores ln 2 ≈ 0.693.
+
+Both mean little on their own, so I compared them with a **no-skill forecast** that always predicts the training share of UP days (51.4%).
+
+### What I found
+- On validation, **every** probability fell between 0.469 and 0.545. On test, 98.8% were between 0.45 and 0.55.
+- Brier: 0.2500 for the model vs 0.2504 for the constant forecast on test, a *0.16%* improvement. Log loss: 0.6931, the same as a coin flip.
+- The reliability bins sit on a thin vertical strip around 0.5, and their 95% intervals (about ±10 points each) overlap one another and the diagonal.
+
+### What it means, plainly
+The model is **barely confident**, and that's the *right* behaviour for a model with almost no signal. It has learned that next-day direction is close to a coin flip, so it hedges near 50%. The probabilities aren't wrong so much as nearly uninformative. **Recalibrating them wouldn't create signal**, so no calibration was fitted. This also explains Phase 5: the 0.55/0.45 band never traded because the model is never that sure.
+
+### Interview soundbite
+"The reliability diagram was the clearest picture of the whole project: every prediction sits between about 0.47 and 0.55, and the Brier score is 0.2500 against 0.2504 for always predicting the base rate. The model isn't miscalibrated, it's honest about having almost nothing to say. That's consistent with the bootstrap and the backtest."
+
+---
+
+## Phase 8: Presenting it honestly
+
+### The README now leads with the answer
+A reader sees the conclusion first ("no reliable, tradeable next-day signal was found"), then one results table with confidence intervals, then the 7 bugs, then the method and the details. Every number is still generated from `reports/metrics.json`. The README is rendered from `docs/README.template.md`, and a test fails if the two drift apart. Rebuilding it also caught four feature formulas that the old README described wrongly (e.g. volatility "annualized", which the code never does).
+
+### Two display fixes on the dashboard
+- **Banners:** "Research prototype, not investment advice", plus the plain backtest result, at the top of the Overview.
+- **The price card mixed sources.** It showed the live price next to an old session's date and an old day's change. Now price, change and date always come from the same place: either the live quote (compared with the last completed session before it) or the stored history.
+
+### A deployment lesson
+After a push, the live server kept running *old* copies of the `src/` modules, because Streamlit only reloads files inside the app's own folder. First the live button failed, then the whole page crashed: new code asked an old cached module for a function it didn't have. A reboot fixes it once. A small guard in `app.py`, which drops cached `src.*` modules at the start of each run, prevents it for good. I tested the guard by planting a stale module on purpose.
+
+*Interview angle:* "Tests passing locally isn't the same as the deployed app working. I checked the public app with a headless browser after every push, and that's how I caught a stale-module crash that never appears locally."

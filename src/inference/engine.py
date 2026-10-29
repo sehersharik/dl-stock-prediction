@@ -165,6 +165,12 @@ class InferenceEngine:
                 }
             latest_features = features_df.iloc[[-1]]
             
+            # Reference for the displayed price change: last completed session before the tick's date
+            tick_day = pd.Timestamp(timestamp).normalize()
+            before_tick = history[history.index < tick_day]
+            reference_date = before_tick.index[-1] if len(before_tick) else None
+            reference_close = float(before_tick['Close'].iloc[-1]) if len(before_tick) else None
+            
             # Validation: Required features exist & Correct Order
             missing_cols = set(self.expected_features) - set(latest_features.columns)
             if missing_cols:
@@ -224,6 +230,9 @@ class InferenceEngine:
                 "status": "Success",
                 "latest_features": latest_features.iloc[-1].to_dict(),
                 "price": live_data['Close'],
+                "reference_date": reference_date,
+                "reference_close": reference_close,
+                "price_change": (live_data['Close'] / reference_close - 1) if reference_close else None,
                 "volume": live_data['Volume'],
                 "open": live_data['Open'],
                 "high": live_data['High'],

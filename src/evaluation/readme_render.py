@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.evaluation.metrics_registry import active_run, backtest_headline, chance_statement, load_metrics
+from src.evaluation.metrics_registry import active_run, backtest_headline, chance_statement, confidence_statement, load_metrics
 from src.utils.config import PROJECT_ROOT
 
 TEMPLATE_PATH = PROJECT_ROOT / "docs" / "README.template.md"
@@ -212,17 +212,7 @@ def _audit_table(metrics: dict, run: dict) -> str:
             fmt = lambda m: (f"{_signed_pct(m['Strategy_Total_Return'])} vs {_signed_pct(m['BnH_Total_Return'])} B&H, "
                              f"Sharpe {m['Strategy_Sharpe']:.2f}, {m['Trades']} trades, {m['Days_Tested']} days")
             rows.append(row(f"Backtest, fixed engine, {ex.replace('_', '-')}", fmt(a), fmt(b)))
-    bugs = "\n".join([
-        "**Bugs found and fixed during the audit:**",
-        "1. **Live inference** passed market context under the wrong keys, so the six NIFTY/VIX features were never built (live predictions always failed).",
-        "2. **Live inference** appended a 1-minute bar to daily data; features now come from completed daily sessions only.",
-        "3. **Holiday placeholder bars** (zero volume, no NIFTY/VIX bar) blanked 50-day windows and silently removed 368 sessions from the data.",
-        "4. **Targets** were computed on the next *surviving* row, so 19 labels spanned 3–88 sessions instead of one.",
-        "5. **Feature selection** compared feature sets on the test period; it now uses validation only.",
-        "6. **Backtest** used the next prediction row as 'tomorrow' (same bug as 4), had no next-open execution, and charged no final-exit or buy-and-hold costs.",
-        "7. **Reported numbers** in the README/dashboard that no code produced were removed; all numbers now come from `reports/metrics.json`.",
-    ])
-    return "\n".join(rows) + "\n\n" + bugs
+    return "\n".join(rows)
 
 
 def _uncertainty_block(run):
@@ -257,6 +247,76 @@ def _uncertainty_block(run):
         "\n".join(rows), "", "\n".join(diffs), "", f"Block-length sensitivity (ROC-AUC 95% CI): {sens}.", "", plain])
 
 
+def _sequence_md(run):
+    s = run.get("sequence_models")
+    if not s:
+        return "Sequence models have not been trained for this run."
+    b, mlp_val = s["bootstrap"], run["metrics"]["mlp"]["val"]
+    rows = ["| Model | Epochs | Val ROC-AUC | Test ROC-AUC (95% CI) | Test Balanced Acc (95% CI) | Δ ROC-AUC vs MLP (95% CI) | Chance p (AUC / BalAcc) |",
+            "|---|---|---|---|---|---|---|",
+            f"| MLP (reference) | — | {mlp_val['ROC-AUC']:.4f} | {b['models']['MLP']['ROC-AUC']['estimate']:.4f} "
+            f"[{b['models']['MLP']['ROC-AUC']['ci95'][0]:.3f}, {b['models']['MLP']['ROC-AUC']['ci95'][1]:.3f}] | "
+            f"{_pct(b['models']['MLP']['Balanced Accuracy']['estimate'])} [{_pct(b['models']['MLP']['Balanced Accuracy']['ci95'][0])}, "
+            f"{_pct(b['models']['MLP']['Balanced Accuracy']['ci95'][1])}] | — | see above |"]
+    for r in s["runs"]:
+        m, d, c = b["models"][r["name"]], b["differences"][f"MLP - {r['name']}"]["ROC-AUC"], s["chance_test"][r["name"]]
+        rows.append(f"| {r['name']} | {r['epochs_run']} | {r['val']['ROC-AUC']:.4f} | {m['ROC-AUC']['estimate']:.4f} "
+                    f"[{m['ROC-AUC']['ci95'][0]:.3f}, {m['ROC-AUC']['ci95'][1]:.3f}] | {_pct(m['Balanced Accuracy']['estimate'])} "
+                    f"[{_pct(m['Balanced Accuracy']['ci95'][0])}, {_pct(m['Balanced Accuracy']['ci95'][1])}] | "
+                    f"{-d['estimate']:+.4f} [{-d['ci95'][1]:+.3f}, {-d['ci95'][0]:+.3f}] | "
+                    f"{c['ROC-AUC']['p_value']:.3f} / {c['Balanced Accuracy']['p_value']:.3f} |")
+    n_tests = 2 * (len(run.get("uncertainty", {}).get("models", {})) + len(s["runs"]))
+    beats = [r["name"] for r in s["runs"] if b["differences"][f"MLP - {r['name']}"]["ROC-AUC"]["ci95"][1] < 0]
+    arch = s["architecture"]
+    return "\n".join([
+        f"Configurations fixed in advance ({', '.join(f'{c.upper()} {l}d' for c, l in s['configs_fixed_in_advance'])}); recurrent layers "
+        f"{arch['recurrent_dims']}, dense {arch['dense_dims']}, dropout {arch['dropout']}; same 27 features, same fixed-date splits, scaler "
+        f"fitted on training rows; early stopping on {s['early_stopping']}. Nothing was tuned on test. Each window ends on the day it "
+        "predicts, so all models are scored on the same test days and the bootstrap differences are paired "
+        "(Δ = sequence model − MLP).", "", "\n".join(rows), "",
+        _sequence_reading(s, beats, n_tests)])
+
+
+def _sequence_reading(s, beats, n_tests):
+    b = s["bootstrap"]["models"]
+    auc_sig = [r["name"] for r in s["runs"] if b[r["name"]]["ROC-AUC"]["excludes_null"]]
+    bal_sig = [r for r in s["runs"] if b[r["name"]]["Balanced Accuracy"]["excludes_null"]]
+    text = (f"> **Plain reading:** {'No' if not beats else ', '.join(beats)} sequence model beats the MLP "
+            f"({'every Δ interval includes 0' if not beats else 'see Δ column'}), and "
+            f"{'none has' if not auc_sig else ', '.join(auc_sig) + ' has'} a ROC-AUC interval that excludes 0.5.")
+    for r in bal_sig:
+        p_val = s["chance_test"][r["name"]]["Balanced Accuracy"]["p_value"]
+        text += (f" {r['name']}'s balanced-accuracy interval excludes 0.5 (circular-shift p {p_val:.3f}), but its validation balanced "
+                 f"accuracy was {_pct(r['val']['Balanced Accuracy'])}, and with {n_tests} intervals tested against 0.5 about "
+                 f"{n_tests * 0.05:.1f} would exclude it by luck alone (Bonferroni threshold {0.05 / n_tests:.4f}); it is treated as "
+                 "noise, not as a reason to switch models.")
+    return text + " Sequence models are therefore not kept."
+
+
+def _calibration_md(run):
+    c = run.get("calibration")
+    if not c:
+        return "Calibration has not been assessed for this run."
+    rows = ["| Split | Days | Observed UP share | P(UP) range | Share in (0.45, 0.55) | Brier | Brier, constant forecast | Brier skill | Log loss | Log loss, constant |",
+            "|---|---|---|---|---|---|---|---|---|---|"]
+    for split, r in c["splits"].items():
+        rows.append(f"| {split} | {r['n']} | {_pct(r['observed_up_rate'], 1)} | {r['prob_min']:.3f}–{r['prob_max']:.3f} | "
+                    f"{_pct(r['share_within_0.45_0.55'], 1)} | {r['brier']:.4f} | {r['brier_reference']:.4f} | {r['brier_skill_score']:+.4f} | "
+                    f"{r['log_loss']:.4f} | {r['log_loss_reference']:.4f} |")
+    bins = ["| Split | Bin (P range) | Days | Mean predicted | Observed UP share (95% CI) |", "|---|---|---|---|---|"]
+    for split, r in c["splits"].items():
+        for b in r["bins"]:
+            bins.append(f"| {split} | {b['p_low']:.3f}–{b['p_high']:.3f} | {b['n']} | {b['mean_predicted']:.3f} | "
+                        f"{_pct(b['observed_up_rate'], 1)} ({_pct(b['observed_ci95'][0], 1)}–{_pct(b['observed_ci95'][1], 1)}) |")
+    return "\n".join([
+        f"Descriptive only: nothing is fitted. Reference: {c['reference']}. Brier skill = 1 − Brier / Brier(constant); 0 means no better "
+        f"than the constant forecast. Log loss of a coin flip is ln 2 ≈ 0.6931. Bins: {c['binning']}.", "",
+        f"![Reliability diagram]({c['figure']})", "", "\n".join(rows), "", "\n".join(bins), "",
+        f"> **Plain reading:** {confidence_statement(run)} The bins cover a sliver of the probability axis and their intervals overlap "
+        "each other and the diagonal, so the probabilities carry almost no information. This matches the earlier findings: there is "
+        "very little signal, and the model has (correctly) learned to say so. Recalibrating would not create signal, so none was fitted."])
+
+
 def _band_block(run):
     b = run.get("threshold_band")
     if not b:
@@ -283,6 +343,81 @@ def _band_block(run):
         f"validation, and the test result rests on {t['Trades']} trades — far too few to claim the strategy now survives costs."])
 
 
+BUGS = [
+        "1. **Live inference** passed market context under the wrong keys, so the six NIFTY/VIX features were never built (live predictions always failed).",
+        "2. **Live inference** appended a 1-minute bar to daily data; features now come from completed daily sessions only.",
+        "3. **Holiday placeholder bars** (zero volume, no NIFTY/VIX bar) blanked 50-day windows and silently removed 368 sessions from the data.",
+        "4. **Targets** were computed on the next *surviving* row, so 19 labels spanned 3–88 sessions instead of one.",
+        "5. **Feature selection** compared feature sets on the test period; it now uses validation only.",
+        "6. **Backtest** used the next prediction row as 'tomorrow' (same bug as 4), had no next-open execution, and charged no final-exit or buy-and-hold costs.",
+        "7. **Reported numbers** in the README/dashboard that no code produced were removed; all numbers now come from `reports/metrics.json`.",
+    
+]
+
+
+def _bugs_md():
+    return "\n".join(BUGS)
+
+
+def _conclusion(metrics: dict, run: dict) -> str:
+    u, bt = run["uncertainty"], run["backtest"]
+    mlp = u["models"]["MLP"]["ROC-AUC"]
+    rf_diff = u["differences"]["MLP - Random Forest"]["ROC-AUC"]
+    head = bt["variants"][bt["headline_execution"]]
+    seq = run.get("sequence_models") or {"runs": []}
+    seq_beats = [r["name"] for r in seq["runs"] if seq["bootstrap"]["differences"][f"MLP - {r['name']}"]["ROC-AUC"]["ci95"][1] < 0]
+    cal = run["calibration"]["splits"]["test"]
+    others = [rid for rid in metrics["runs"] if rid != run["run_id"]]
+    old = metrics["runs"][others[0]] if others else None
+    lines = [
+        f"**Short answer: no reliable, tradeable next-day signal was found.** On {u['n_obs']} held-out trading days "
+        f"({run['split']['test']['start']} to {run['split']['test']['end']}), the MLP's test ROC-AUC is **{mlp['estimate']:.3f}** "
+        f"(95% block-bootstrap CI {mlp['ci95'][0]:.3f}–{mlp['ci95'][1]:.3f}), which is "
+        f"{'**not** ' if not mlp['excludes_null'] else ''}distinguishable from random guessing, and it is "
+        f"{'**not** ' if not rf_diff['excludes_null'] else ''}distinguishable from a Random Forest "
+        f"(difference {rf_diff['estimate']:+.3f}, CI {rf_diff['ci95'][0]:+.3f} to {rf_diff['ci95'][1]:+.3f}).",
+        "",
+        f"- **Sequence models** (LSTM/GRU, 10- and 20-day lookback): {'none beats' if not seq_beats else ', '.join(seq_beats) + ' beat'} the MLP.",
+        f"- **Probabilities:** {_pct(cal['share_within_0.45_0.55'], 1)} of test predictions lie between 0.45 and 0.55; the Brier score "
+        f"({cal['brier']:.4f}) is essentially that of always predicting the base rate ({cal['brier_reference']:.4f}).",
+        f"- **Backtest:** {backtest_headline(run)} The strategy made {head['Trades']} round trips and paid "
+        f"{_pct(head['Total_Cost_Paid'])} of capital in costs.",
+    ]
+    if old:
+        a = old["backtest"]["as_reported"]
+        lines.append(f"- **Earlier, better-looking results were artefacts.** The previous version reported test ROC-AUC "
+                     f"{old['metrics']['mlp']['test']['ROC-AUC']:.4f} and a backtest of {_signed_pct(a['Strategy_Total_Return'])} vs "
+                     f"{_signed_pct(a['BnH_Total_Return'])} buy & hold. Fixing the {len(BUGS)} bugs below removed that apparent edge.")
+    return "\n".join(lines)
+
+
+def _key_results(run: dict) -> str:
+    u, mets = run["uncertainty"], run["metrics"]
+    rows = ["| Model | Test ROC-AUC (95% CI) | Test balanced accuracy (95% CI) | ROC-AUC CI excludes 0.5? |", "|---|---|---|---|"]
+    def add(name, m):
+        a, b = m["ROC-AUC"], m["Balanced Accuracy"]
+        rows.append(f"| {name} | {a['estimate']:.3f} ({a['ci95'][0]:.3f}–{a['ci95'][1]:.3f}) | {_pct(b['estimate'], 1)} "
+                    f"({_pct(b['ci95'][0], 1)}–{_pct(b['ci95'][1], 1)}) | {'Yes' if a['excludes_null'] else 'No'} |")
+    for name, m in u["models"].items():
+        add(name, m)
+    seq = run.get("sequence_models")
+    if seq:
+        for r in seq["runs"]:
+            add(r["name"], seq["bootstrap"]["models"][r["name"]])
+    for key, name in (("logistic", "Logistic Regression"), ("majority", "Majority class")):
+        if key in mets.get("baselines", {}):
+            t = mets["baselines"][key]["test"]
+            rows.append(f"| {name} | {t['ROC-AUC']:.3f} (no CI) | {_pct(t['Balanced Accuracy'], 1)} (no CI) | — |")
+    bt = run["backtest"]
+    head = bt["variants"][bt["headline_execution"]]
+    return "\n".join(rows) + ("\n\n" f"**Backtest ({bt['headline_execution'].replace('_', '-')}, {_pct(bt['cost_per_side'])} per side, "
+                               f"{head['Days_Tested']} days):** strategy {_signed_pct(head['Strategy_Total_Return'])} vs buy & hold "
+                               f"{_signed_pct(head['BnH_Total_Return'])} over the same periods; Sharpe {head['Strategy_Sharpe']:.2f} vs "
+                               f"{head['BnH_Sharpe']:.2f} (rf {_pct(bt['risk_free_rate_annual'], 1)}, assumption); max drawdown "
+                               f"{_pct(head['Strategy_Max_Drawdown'])} vs {_pct(head['BnH_Max_Drawdown'])}. "
+                               "CIs: stationary block bootstrap, mean block 10 days, 5,000 resamples.")
+
+
 def context(run: dict) -> dict:
     split, mlp, sel = run["split"], run["metrics"]["mlp"]["test"], run["feature_selection"]
     layers = run["model"]["layers"]
@@ -303,7 +438,7 @@ def context(run: dict) -> dict:
         "selection_split": sel["split"],
         "abl_prev": f"{levels[-2]['ROC-AUC']:.3f}", "abl_last": f"{levels[-1]['ROC-AUC']:.3f}",
         "backtest_headline": backtest_headline(run),
-        "uncertainty_block": _uncertainty_block(run), "band_block": _band_block(run),
+        "uncertainty_block": _uncertainty_block(run), "band_block": _band_block(run), "sequence_block": _sequence_md(run), "calibration_block": _calibration_md(run),
         "results_table": _results_table(run), "ablation_table": _ablation_table(run), "perm_block": _perm_block(run),
         **_backtest_blocks(run),
     }
@@ -316,7 +451,12 @@ def context(run: dict) -> dict:
 
 def render_text(template: str, run: dict, metrics: dict = None) -> str:
     ctx = context(run)
-    ctx["audit_table"] = _audit_table(metrics or load_metrics(), run)
+    metrics = metrics or load_metrics()
+    ctx["audit_table"] = _audit_table(metrics, run)
+    ctx["conclusion"] = _conclusion(metrics, run)
+    ctx["key_results"] = _key_results(run)
+    ctx["bugs"] = _bugs_md()
+    ctx["n_bugs"] = str(len(BUGS))
     missing = sorted(set(PLACEHOLDER.findall(template)) - set(ctx))
     if missing:
         raise KeyError(f"README template uses unknown placeholders: {missing}")

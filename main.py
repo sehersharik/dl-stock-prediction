@@ -56,6 +56,8 @@ def main():
     metrics_parser = subparsers.add_parser("metrics", help="Build reports/metrics.json (single source of reported results)")
     metrics_parser.add_argument("--new-run", required=True, help="MLP registry run id to include alongside the previous run")
     metrics_parser.add_argument("--active", required=True, help="Run id the dashboard, README and live engine should use")
+    seq_parser = subparsers.add_parser("sequence-models", help="Train LSTM/GRU (10 and 20-day lookback) on the fixed-date splits")
+    seq_parser.add_argument("--ticker", required=True)
     band_parser = subparsers.add_parser("threshold-band", help="Choose a no-trade probability band on validation, evaluate on test once")
     band_parser.add_argument("--ticker", required=True)
     band_parser.add_argument("--run", required=True, help="MLP registry run id")
@@ -321,6 +323,10 @@ def main():
     elif args.command == "metrics":
         from src.evaluation.metrics_registry import build
         build(args.new_run, args.active)
+
+    elif args.command == "sequence-models":
+        from src.experiments.sequence_models import run_sequence_models
+        run_sequence_models(args.ticker)
 
     elif args.command == "threshold-band":
         from src.experiments.threshold_band import run_threshold_band

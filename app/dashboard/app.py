@@ -13,8 +13,14 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
+# Streamlit only reloads modules under this script's folder, so after a redeploy the
+# server can keep stale copies of src.* from before the update (e.g. an old
+# src.features.generator without a newly added function). Re-import them on every run.
+for _name in [m for m in sys.modules if m == "src" or m.startswith("src.")]:
+    del sys.modules[_name]
+
 from src.utils.config import load_config
-from src.evaluation.metrics_registry import backtest_headline, chance_statement
+from src.evaluation.metrics_registry import backtest_headline, chance_statement, confidence_statement
 from src.inference.engine import InferenceEngine
 from src.data.live_provider import YFinanceLiveProvider
 
@@ -368,7 +374,12 @@ FEATURE_TRANSLATIONS = {
 # ==============================================================================
 with tab_overview:
     
-    # ── BACKTEST HEADLINE (plain statement, generated from metrics.json) ───────
+    # ── DISCLAIMER & BACKTEST HEADLINE (plain statement, generated from metrics.json)
+    st.markdown("""
+    <div style="background-color: #FFFBEB; border: 1px solid #FDE68A; border-radius: 6px; padding: 0.6rem 1.1rem; margin-bottom: 0.6rem; font-size: 0.9rem; color: #78350F;">
+      <strong>Research prototype, not investment advice.</strong>
+    </div>
+    """, unsafe_allow_html=True)
     st.markdown(f"""
     <div style="background-color: #FEF2F2; border: 1px solid #FECACA; border-left: 4px solid #DC2626; border-radius: 6px; padding: 0.8rem 1.1rem; margin-bottom: 1rem; font-size: 0.9rem; color: #7F1D1D;">
       <strong>Backtest result:</strong> {backtest_headline(backend_data['run'])}
@@ -395,6 +406,7 @@ with tab_overview:
     latest_raw_date = raw_df.index[-1]
     latest_raw_close = raw_df['Close'].iloc[-1]
     prev_raw_close = raw_df['Close'].iloc[-2]
+    prev_raw_date = raw_df.index[-2]
     daily_change_pct = ((latest_raw_close / prev_raw_close) - 1) * 100 if prev_raw_close else 0.0
     
     # Check if user triggered live refresh
@@ -414,7 +426,7 @@ with tab_overview:
               </div>
             </div>
             <div class="data-status-badge">
-              <span>📅 Data session: <strong>{latest_raw_date.strftime('%d %b %Y')}</strong></span>
+              <span>📅 Historical data through: <strong>{latest_raw_date.strftime('%d %b %Y')}</strong></span>
             </div>
           </div>
         </div>
@@ -501,8 +513,18 @@ with tab_overview:
         """, unsafe_allow_html=True)
 
     with col_price:
-        change_color = "#16A34A" if daily_change_pct >= 0 else "#DC2626"
-        change_icon = "+" if daily_change_pct >= 0 else ""
+        # Price, change and date must come from the same source: the live tick (vs the last
+        # completed session before it) when a live run succeeded, otherwise the stored history.
+        if live_res and live_res.get("status") == "Success" and live_res.get("price_change") is not None:
+            change_pct = live_res["price_change"] * 100
+            change_label = f"vs close of {pd.Timestamp(live_res['reference_date']).strftime('%d %b %Y')}"
+            price_time_label = f"Live quote: <strong>{pd.Timestamp(live_res['timestamp']).strftime('%d %b %Y %H:%M')} IST</strong> (delayed)"
+        else:
+            change_pct = daily_change_pct
+            change_label = f"vs close of {prev_raw_date.strftime('%d %b %Y')}"
+            price_time_label = f"Close of NSE session: <strong>{latest_raw_date.strftime('%d %b %Y')}</strong> (stored history)"
+        change_color = "#16A34A" if change_pct >= 0 else "#DC2626"
+        change_icon = "+" if change_pct >= 0 else ""
         
         st.markdown(f"""
         <div class="prediction-card">
@@ -511,13 +533,13 @@ with tab_overview:
             ₹{display_price:,.2f}
           </div>
           <div style="font-size: 0.92rem; font-weight: 600; color: {change_color}; display: flex; align-items: center; gap: 0.4rem; margin-bottom: 1rem;">
-            <span>{change_icon}{daily_change_pct:.2f}%</span>
-            <span style="font-size: 0.8rem; color: #64748B; font-weight: 400;">(Previous Session Change)</span>
+            <span>{change_icon}{change_pct:.2f}%</span>
+            <span style="font-size: 0.8rem; color: #64748B; font-weight: 400;">({change_label})</span>
           </div>
           
           <div style="padding-top: 0.75rem; border-top: 1px solid #F1F5F9; font-size: 0.82rem; color: #64748B; line-height: 1.6;">
-            <div>NSE Trading Session: <strong>{latest_raw_date.strftime('%d %b %Y')}</strong></div>
-            <div>Historical 10-Year Horizon: <strong>2016 – 2026</strong></div>
+            <div>{price_time_label}</div>
+            <div>Historical data: <strong>{raw_df.index[0].year} – {latest_raw_date.year}</strong></div>
           </div>
         </div>
         """, unsafe_allow_html=True)
@@ -752,7 +774,7 @@ with tab_overview:
 
     st.markdown(f"""
     <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 0.9rem 1.1rem; margin-top: 1rem; font-size: 0.88rem; color: #475569;">
-      <strong>Plain-English Verdict:</strong> Test ROC-AUC is {roc_auc_val:.4f} (0.5 = random guessing). {chance_statement(backend_data['run'])} Performance can vary across market conditions.
+      <strong>Plain-English Verdict:</strong> Test ROC-AUC is {roc_auc_val:.4f} (0.5 = random guessing). {chance_statement(backend_data['run'])} {confidence_statement(backend_data['run'])} Performance can vary across market conditions.
     </div>
     """, unsafe_allow_html=True)
 

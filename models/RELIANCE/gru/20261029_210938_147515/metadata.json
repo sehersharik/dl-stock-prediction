@@ -1,0 +1,107 @@
+{
+    "run_id": "20261029_210938_147515",
+    "model_type": "gru",
+    "ticker": "RELIANCE.NS",
+    "target": "Target_Direction",
+    "feature_set": "Count: 27",
+    "feature_list": [
+        "Return_1d",
+        "Return_5d",
+        "Return_10d",
+        "Return_20d",
+        "HL_Spread",
+        "CO_Spread",
+        "Dist_SMA20",
+        "Dist_SMA50",
+        "Dist_SMA200",
+        "SMA20_50_Ratio",
+        "SMA50_200_Ratio",
+        "RSI_14",
+        "MACD_Ratio",
+        "MACD_Hist_Ratio",
+        "ROC_12",
+        "ATR_Ratio",
+        "Rolling_Vol_20",
+        "BB_PctB",
+        "BB_Width",
+        "Vol_Change",
+        "Vol_Ratio_20",
+        "NIFTY_Return_1d",
+        "NIFTY_Return_5d",
+        "NIFTY_Vol_20",
+        "NIFTY_Dist_SMA50",
+        "VIX_Level",
+        "VIX_Change_1d"
+    ],
+    "training_date": "2026-10-29T21:09:43.360750",
+    "training_period": [
+        "2017-08-09 00:00:00",
+        "2023-10-19 00:00:00"
+    ],
+    "validation_period": [
+        "2023-10-20 00:00:00",
+        "2024-12-20 00:00:00"
+    ],
+    "test_period": [
+        "2024-12-23 00:00:00",
+        "2026-09-10 00:00:00"
+    ],
+    "sequence_length": 10,
+    "scaler_path": "/Users/sehersharik/Downloads/dl-stock-prediction/models/RELIANCE/gru/20261029_210938_147515/scaler.joblib",
+    "random_seed": 42,
+    "hyperparameters": {
+        "type": "mlp",
+        "layers": [
+            32,
+            16
+        ],
+        "dropout": 0.2,
+        "use_batch_norm": false,
+        "epochs": 60,
+        "batch_size": 64,
+        "learning_rate": 0.001,
+        "weight_decay": 0.001
+    },
+    "metrics": {
+        "val": {
+            "Accuracy": 0.4911660777385159,
+            "Balanced Accuracy": 0.47456351595424445,
+            "Precision": 0.5165876777251185,
+            "Recall": 0.7218543046357616,
+            "F1": 0.6022099447513812,
+            "Confusion Matrix": [
+                [
+                    30,
+                    102
+                ],
+                [
+                    42,
+                    109
+                ]
+            ],
+            "ROC-AUC": 0.5112883804936785,
+            "PR-AUC": 0.5692555582535521
+        },
+        "test": {
+            "Accuracy": 0.5441527446300716,
+            "Balanced Accuracy": 0.5453696107920882,
+            "Precision": 0.5317460317460317,
+            "Recall": 0.6473429951690821,
+            "F1": 0.5838779956427015,
+            "Confusion Matrix": [
+                [
+                    94,
+                    118
+                ],
+                [
+                    73,
+                    134
+                ]
+            ],
+            "ROC-AUC": 0.5332923161060978,
+            "PR-AUC": 0.5308234234196388
+        },
+        "epochs_run": 13
+    },
+    "git_commit": "a96c3b96eafa6b10525a116d8435d47f81d61cfa"
+}
