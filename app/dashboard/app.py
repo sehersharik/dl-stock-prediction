@@ -426,7 +426,7 @@ with tab_overview:
     # Refresh Market Data Button
     col_ref_btn, col_ref_msg = st.columns([1, 4])
     with col_ref_btn:
-        if st.button("🔄 Update Live Market Tick", use_container_width=True):
+        if st.button("🔄 Update Live Market Tick", width='stretch'):
             with st.spinner("Polling live market data and executing model inference..."):
                 try:
                     config = load_config(str(PROJECT_ROOT / "config" / "settings.yaml"))
@@ -450,8 +450,8 @@ with tab_overview:
         prob_up = live_res.get('direction_prob', 0.50)
         prob_down = 1.0 - prob_up
         display_price = live_res.get('price', latest_raw_close)
-        display_timestamp = str(live_res.get('timestamp'))[:10]
-        data_source_label = "Live snapshot"
+        display_timestamp = str(live_res.get('feature_date', live_res.get('timestamp')))[:10]
+        data_source_label = "Live model run on completed session"
     else:
         # Out-of-sample latest test prediction
         latest_pred_row = test_preds.iloc[-1] if not test_preds.empty else None
@@ -643,7 +643,7 @@ with tab_overview:
             legend=dict(orientation="h", y=1.08, x=0.01)
         )
         
-        st.plotly_chart(fig_chart, use_container_width=True)
+        st.plotly_chart(fig_chart, width='stretch')
 
     # ── MARKET CONTEXT ────────────────────────────────────────────────────────
     st.markdown('<div class="section-heading">Market Context</div>', unsafe_allow_html=True)
@@ -690,7 +690,7 @@ with tab_overview:
 
     # ── MODEL RELIABILITY ("How reliable is the model?") ──────────────────────
     st.markdown('<div class="section-heading">How reliable is the model?</div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-subheading">Out-of-sample evaluation on 284 held-out trading days (2024–2026) untouched during model training.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-subheading">Out-of-sample evaluation on 284 held-out trading days (2024–2026) that were not used to train the model. Note: the feature set was chosen by comparing scores on this same period, so these figures are likely somewhat optimistic.</div>', unsafe_allow_html=True)
     
     model_metrics = backend_data.get('model_metrics', {})
     
@@ -739,7 +739,7 @@ with tab_overview:
 
     st.markdown("""
     <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 0.9rem 1.1rem; margin-top: 1rem; font-size: 0.88rem; color: #475569;">
-      <strong>Plain-English Verdict:</strong> These results indicate a modest, statistically significant predictive signal (ROC-AUC 0.5676) rather than highly accurate forecasting. Performance can vary across market conditions.
+      <strong>Plain-English Verdict:</strong> These results indicate a modest predictive signal (ROC-AUC 0.5676) rather than highly accurate forecasting. Whether it is reliably better than chance has not yet been tested. Performance can vary across market conditions.
     </div>
     """, unsafe_allow_html=True)
 
@@ -790,7 +790,7 @@ with tab_overview:
             yaxis=dict(tickprefix="₹", showgrid=True, gridcolor="#F1F5F9"),
             legend=dict(orientation="h", y=1.06, x=0.01)
         )
-        st.plotly_chart(fig_bt, use_container_width=True)
+        st.plotly_chart(fig_bt, width='stretch')
 
     # ── TRANSACTION COST SENSITIVITY TABLE ─────────────────────────────────────
     st.markdown('<div style="font-size: 0.95rem; font-weight: 700; color: #0F172A; margin-top: 1rem;">Transaction Cost Sensitivity (Friction Robustness)</div>', unsafe_allow_html=True)
@@ -802,7 +802,7 @@ with tab_overview:
         {"Friction Scenario": "High Friction (0.25%)", "Strategy Return": "+16.13%", "Sharpe Ratio": "1.04", "Max Drawdown": "-6.80%", "Win Rate": "54.55%"},
         {"Friction Scenario": "Severe Stress (0.30%)", "Strategy Return": "+12.47%", "Sharpe Ratio": "0.83", "Max Drawdown": "-8.08%", "Win Rate": "52.89%"},
     ])
-    st.dataframe(sensitivity_df, use_container_width=True, hide_index=True)
+    st.dataframe(sensitivity_df, width='stretch', hide_index=True)
 
 
 # ==============================================================================
@@ -845,11 +845,11 @@ with tab_analysis:
             xaxis_title="Feature Level",
             yaxis_title="Test ROC-AUC Score"
         )
-        st.plotly_chart(fig_abl, use_container_width=True)
+        st.plotly_chart(fig_abl, width='stretch')
 
         st.markdown("""
         <div class="explanation-banner">
-          <strong>Key Research Takeaway:</strong> Single-stock indicators alone (F0–F4) achieved maximum out-of-sample ROC-AUC of ~0.514. Incorporating <strong>Market Context (F5)</strong> — NIFTY index movements and India VIX volatility — produced the primary performance breakout to <strong>ROC-AUC 0.5676</strong>.
+          <strong>Key Research Takeaway:</strong> Single-stock indicators alone (F0–F4) achieved maximum out-of-sample ROC-AUC of ~0.514. Incorporating <strong>Market Context (F5)</strong> — NIFTY index movements and India VIX volatility — produced the largest improvement, to <strong>ROC-AUC 0.5676</strong>. These comparisons were made on the test period, which was then used to choose the final feature set.
         </div>
         """, unsafe_allow_html=True)
 
@@ -868,7 +868,7 @@ with tab_analysis:
             color_continuous_scale="Blues"
         )
         fig_cm.update_layout(height=280, margin=dict(l=10, r=10, t=10, b=10))
-        st.plotly_chart(fig_cm, use_container_width=True)
+        st.plotly_chart(fig_cm, width='stretch')
         
     with col_cm2:
         st.markdown("""
@@ -914,8 +914,7 @@ with tab_methodology:
     - **Normalization:** `StandardScaler` fitted **exclusively** on Training split $X_{train}$.
 
     ### 4. Validation & Leakage Prevention
-    - **Chronological Split:** 70% Train (1,323 samples | 2017–2023), 15% Validation (283 samples | 2023–2024), 15% Untouched Test (284 samples | 2024–2026).
-    - **Walk-Forward Validation:** 5-Fold expanding window cross-validation across 189-day evaluation folds.
+    - **Chronological Split:** 70% Train (1,323 samples | 2017–2023), 15% Validation (283 samples | 2023–2024), 15% Test (284 samples | 2024–2026), held out from training but used to compare feature sets.
     - **No Lookahead Bias:** Features at time $t$ use data available strictly at or before $t$. Signals at $t$ determine positions for $t \to t+1$ returns.
 
     ---

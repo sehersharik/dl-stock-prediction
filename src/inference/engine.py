@@ -3,7 +3,9 @@ import numpy as np
 import torch
 import joblib
 import logging
+from datetime import datetime, time
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from src.features.generator import FeatureGenerator
 from src.data.live_provider import LiveDataProvider
 from src.models.dl_models import ConfigurableMLP
@@ -14,9 +16,27 @@ logger = logging.getLogger(__name__)
 
 # Market context tickers required by the stationary feature pipeline
 CONTEXT_TICKERS = {
-    "nifty": "^NSEI",
-    "vix": "^INDIAVIX"
+    "NIFTY": "^NSEI",
+    "VIX": "^INDIAVIX"
 }
+
+# NSE closes at 15:30 IST. A daily bar dated today is only treated as a completed
+# session after this time, leaving a margin for the provider to settle the close.
+SESSION_COMPLETE_IST = time(16, 0)
+
+
+def to_daily_index(df: pd.DataFrame) -> pd.DataFrame:
+    """Index by calendar date (one row per session), matching the daily bars used in training."""
+    df = df.copy()
+    df.index = pd.DatetimeIndex(df.index).normalize()
+    return df[~df.index.duplicated(keep='last')].sort_index()
+
+
+def drop_incomplete_session(df: pd.DataFrame, now: datetime) -> pd.DataFrame:
+    """Drop today's bar if the trading session has not finished yet (`now` is naive IST)."""
+    if len(df) and df.index[-1] == pd.Timestamp(now.date()) and now.time() < SESSION_COMPLETE_IST:
+        return df.iloc[:-1]
+    return df
 
 class InferenceEngine:
     def __init__(self, config: dict, provider: LiveDataProvider, project_root: Path):
@@ -94,7 +114,7 @@ class InferenceEngine:
         """Fall back to locally-saved 10y CSVs for context features."""
         raw_dir = self.project_root / self.config['data'].get('raw_dir', 'data/raw')
         context = {}
-        mappings = {"nifty": "NSEI_10y.csv", "vix": "INDIAVIX_10y.csv"}
+        mappings = {"NIFTY": "NSEI_10y.csv", "VIX": "INDIAVIX_10y.csv"}
         for key, fname in mappings.items():
             fpath = raw_dir / fname
             if fpath.exists():
@@ -102,31 +122,53 @@ class InferenceEngine:
                 logger.info(f"Loaded local context fallback: {fname} ({len(context[key])} rows)")
         return context
 
-    def run_live_inference(self, ticker: str, model_name: str):
-        """Executes a single live inference tick with strict validation."""
+    def run_live_inference(self, ticker: str, model_name: str, now: datetime = None):
+        """Executes a single live inference tick with strict validation.
+
+        Features are built from the latest *completed* daily session, as in training.
+        The intraday tick is only used for the displayed price.
+        """
         self._load_artifacts(ticker, model_name)
-        
+        if now is None:
+            now = datetime.now(ZoneInfo('Asia/Kolkata')).replace(tzinfo=None)
+
         try:
-            # 1. Fetch live data
+            # 1. Fetch live data (display only — a 1-minute bar is not a daily feature row)
             live_data = self.provider.get_latest_data(ticker)
             timestamp = live_data.pop('timestamp')
             status = live_data.pop('status')
             source = live_data.pop('source')
             _ = live_data.pop('interval')
-            
+
             # Stale/Incomplete Data Check
             if status == 'Stale/Delayed':
                 logger.warning('Data is stale/delayed. Proceeding with latest available trading session.')
-                
-            # 2. Update history buffer with latest row
-            self.history_buffer.loc[timestamp] = [
-                live_data['Open'], live_data['High'], live_data['Low'], 
-                live_data['Close'], live_data['Volume']
-            ]
-            
+
+            # 2. Align target and context data to one row per completed trading session
+            missing_ctx = [k for k in CONTEXT_TICKERS
+                           if self.context_buffers.get(k) is None or self.context_buffers[k].empty]
+            if missing_ctx:
+                logger.error(f"Prediction unavailable — no market context data for: {missing_ctx}")
+                return {
+                    "status": "Error",
+                    "message": f"Prediction unavailable: market context data could not be retrieved for {', '.join(missing_ctx)}"
+                }
+            history = drop_incomplete_session(to_daily_index(self.history_buffer), now)
+            context = {k: to_daily_index(v) for k, v in self.context_buffers.items()}
+            session_date = history.index[-1]
+
             # 3. Generate stationary features with NIFTY/VIX context
             logging.getLogger('src.features.generator').setLevel(logging.WARNING)
-            features_df = self.feature_gen.generate(self.history_buffer, context_dfs=self.context_buffers)
+            features_df = self.feature_gen.generate(history, context_dfs=context)
+
+            # Validation: the feature row must belong to the latest completed session,
+            # otherwise an older row would silently be presented as current.
+            if features_df.empty or features_df.index[-1] != session_date:
+                logger.error(f"Prediction unavailable — no complete feature row for session {session_date.date()}")
+                return {
+                    "status": "Error",
+                    "message": f"Prediction unavailable: features could not be computed for the latest completed session ({session_date.date()}); NIFTY or VIX data for that date may be missing"
+                }
             latest_features = features_df.iloc[[-1]]
             
             # Validation: Required features exist & Correct Order
@@ -176,6 +218,7 @@ class InferenceEngine:
             
             return {
                 "timestamp": timestamp,
+                "feature_date": session_date,
                 "ticker": ticker,
                 "model_version": self.model_version,
                 "feature_version": self.feature_version,

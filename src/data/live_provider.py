@@ -48,7 +48,7 @@ class YFinanceLiveProvider(LiveDataProvider):
         
         Args:
             context_tickers: dict mapping internal key to yfinance ticker symbol,
-                             e.g. {"nifty": "^NSEI", "vix": "^INDIAVIX"}
+                             e.g. {"NIFTY": "^NSEI", "VIX": "^INDIAVIX"}
             lookback_days: number of trading days of lookback to fetch
             
         Returns:

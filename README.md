@@ -20,13 +20,12 @@
 | **Feature Matrix ($X$)** | 27 Stationary Dimensionless Features | Returns, ratios, normalized momentum, volatility & macro context |
 | **Target Vector ($y$)** | Next-Day Direction $y_t \in \{0, 1\}$ | $y_t = 1$ if $(P_{t+1}/P_t - 1) > 0$ else $0$ |
 | **Train / Val / Test Split** | Chronological 70% / 15% / 15% | Train: 1,323 (2017–2023) \| Val: 283 (2023–2024) \| Test: 284 (2024–2026) |
-| **Cross-Validation** | 5-Fold Expanding Window Walk-Forward | Evaluated on 189-day sequential folds |
 | **Model Architecture** | PyTorch Small MLP `[32, 16]` | Input (27) $\to$ Linear(32) $\to$ ReLU $\to$ Drop(0.2) $\to$ Linear(16) $\to$ ReLU $\to$ Drop(0.2) $\to$ Out(1) |
 | **Optimizer & Loss** | Adam ($\text{lr}=10^{-3}, \text{weight\_decay}=10^{-3}$) | `BCEWithLogitsLoss` with dynamic class `pos_weight` |
-| **Out-of-Sample ROC-AUC** | **0.5676** | Untouched test set (284 trading days, 2024–2026) |
+| **Out-of-Sample ROC-AUC** | **0.5676** | Test set (284 trading days, 2024–2026); also used to choose the feature set, so likely optimistic |
 | **Out-of-Sample Balanced Acc**| **57.39%** | Precision: 58.68% \| Recall: 50.00% \| F1: 0.5399 |
 | **Backtest Return (0.15% Cost)**| **+23.80%** (vs **+5.13%** Buy & Hold) | Sharpe: **1.45** \| Max Drawdown: **-5.27%** \| Win Rate: **55.37%** (64 trades) |
-| **Test Suite Status** | **18 / 18 Tests Passing** | Includes leakage tests, stationary column tests & splitter tests |
+| **Test Suite Status** | **24 / 24 Tests Passing** | Includes leakage, stationary-column, splitter and live-inference parity tests |
 
 ---
 
@@ -222,20 +221,14 @@ Linear(16 -> 1)   ──►  Logits (Binary Output)
 
 ## Validation Strategy & Timeline Isolation
 
-Financial time series exhibit strong temporal dependence and regime shifts. Random cross-validation is invalid. We employ two complementary validation schemes:
+Financial time series exhibit strong temporal dependence and regime shifts. Random cross-validation is invalid. We use a hard chronological split:
 
 ### 1. Hard Chronological Split (70 / 15 / 15)
 - **Training Set (70%):** 1,323 samples | 2017-07-27 to 2023-10-19 (51.9% UP days)
 - **Validation Set (15%):** 283 samples | 2023-10-20 to 2024-12-20 (50.9% UP days)
 - **Test Set (15%):** 284 samples | 2024-12-23 to 2026-09-10 (50.0% UP days)
 
-### 2. Expanding-Window Walk-Forward Validation (5 Folds)
-An initial 50% training set expands sequentially across 5 out-of-sample evaluation folds:
-- **Fold 1:** Train 2017-07-27 to 2022-02-18 | Val 2022-02-21 to 2023-01-13 (189 days)
-- **Fold 2:** Train 2017-07-27 to 2023-01-13 | Val 2023-01-16 to 2023-10-19 (189 days)
-- **Fold 3:** Train 2017-07-27 to 2023-10-19 | Val 2023-10-20 to 2024-07-25 (189 days)
-- **Fold 4:** Train 2017-07-27 to 2024-07-25 | Val 2024-07-26 to 2025-05-05 (189 days)
-- **Fold 5:** Train 2017-07-27 to 2025-05-05 | Val 2025-05-06 to 2026-09-10 (191 days)
+> **Walk-forward evaluation:** `src/evaluation/splitter.py` defines 5 expanding-window folds (print them with `python main.py splits`), but no per-fold model evaluation is implemented yet. Walk-forward results previously listed here were removed because no code in the repository produces them.
 
 ---
 
@@ -245,16 +238,10 @@ An initial 50% training set expands sequentially across 5 out-of-sample evaluati
 
 | Model Architecture | Accuracy | Balanced Acc | Precision | Recall | F1-Score | ROC-AUC | PR-AUC |
 |---|---|---|---|---|---|---|---|
-| **Majority Class Baseline** | 50.00% | 50.00% | 50.00% | 100.0% | 0.6667 | 0.5000 | 0.5000 |
-| **Logistic Regression** | 50.35% | 50.35% | 50.35% | 50.70% | 0.5052 | 0.5143 | 0.5098 |
-| **Random Forest Baseline** | 52.82% | 52.82% | 53.10% | 47.89% | 0.5037 | 0.5414 | 0.5210 |
 | **Small MLP [32, 16] (Final)** | **57.39%** | **57.39%** | **58.68%** | **50.00%** | **0.5399** | **0.5676** | **0.5301** |
 | **LSTM [32, 16] (Seq 30)** | 48.94% | 48.94% | 48.51% | 31.69% | 0.3834 | 0.4890 | 0.4881 |
 
-### 5-Fold Walk-Forward Cross-Validation Performance
-- **Small MLP [32, 16]:** Mean Walk-Forward ROC-AUC = **0.5491 ± 0.010** *(Most consistent architecture)*
-- **Random Forest:** Mean Walk-Forward ROC-AUC = **0.5414 ± 0.031**
-- **Logistic Regression:** Mean Walk-Forward ROC-AUC = **0.5143 ± 0.037**
+> Baseline rows (majority class, Logistic Regression, Random Forest) were removed because the previous figures could not be traced to a single consistent run; they will be re-reported from one evaluation.
 
 ---
 
@@ -269,11 +256,13 @@ An initial 50% training set expands sequentially across 5 out-of-sample evaluati
 | **F4 (Volume)** | F3 + Volume Changes & Ratios | 21 | 0.4964 | 48.59% | 0.4786 | 0.4747 |
 | **F5 (Context)**| F4 + NIFTY 50 & India VIX | **27** | **0.5676** | **57.39%** | **0.5399** | 0.4890 |
 
+> **Caveat — test-set contamination:** these ablation scores were measured on the test period, and the final 27-feature set (F5) was chosen because it scored best there. The headline test ROC-AUC of 0.5676 is therefore likely optimistic. A re-run that selects features on the validation period only is planned.
+
 ---
 
 ## Model Explainability & Permutation Feature Importance
 
-Computed by shuffling each feature column on the untouched test set and measuring the drop in model ROC-AUC:
+Computed by shuffling each feature column on the test set and measuring the drop in model ROC-AUC:
 
 ```text
 Top Features Ranked by Drop in Test ROC-AUC:
@@ -326,6 +315,8 @@ Top Features Ranked by Drop in Test ROC-AUC:
 | **Default Friction (Official)** | **0.15%** (0.10% cost + 0.05% slip) | **+23.80%** | **1.45** | **-5.27%** | **55.37%** |
 | **High Friction** | 0.25% (0.20% cost + 0.05% slip) | **+16.13%** | 1.04 | -6.80% | 54.55% |
 | **Severe Stress Test** | 0.30% (0.20% cost + 0.10% slip) | **+12.47%** | 0.83 | -8.08% | 52.89% |
+
+> **Why the zero-cost win rate equals the MLP's precision (58.68%):** win rate here is counted per in-market day. At threshold 0.5 the strategy is in the market exactly on the days the model predicts UP, so with no costs a winning day is the same as a correct UP prediction.
 
 ---
 
@@ -506,7 +497,7 @@ python -m pytest tests/ -v
 
 ### Key Research Takeaways
 - **Stationarity is Essential:** Non-stationary features destroy neural network generalization.
-- **Market Context Provides Signal:** Macro market feeds (NIFTY and VIX) are critical for predictive breakout.
+- **Market Context Provides Signal:** Adding macro market feeds (NIFTY and VIX) gave the largest test-period improvement in the ablation (measured on the period also used for selection).
 - **Risk Mitigation Drives Strategy Return:** Sitting in cash during drawdowns generates higher risk-adjusted returns than aggressive trading.
 
 ---

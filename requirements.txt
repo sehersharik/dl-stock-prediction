@@ -1,30 +1,30 @@
 # Data pipeline & ingestion
-pandas>=2.0.0
-numpy>=1.24.0
-yfinance>=0.2.0
-pyarrow>=12.0.0
+pandas==3.1.0
+numpy==2.5.4
+yfinance==1.7.0
+pyarrow==26.0.0
 
 # Feature Engineering
-ta>=0.10.0
-scipy>=1.10.0
+ta==0.11.0
+scipy==1.18.1
 
 # ML Baselines
-scikit-learn>=1.2.0
-xgboost>=2.0.0
+scikit-learn==1.9.1
+xgboost==3.4.1
 
 # Deep Learning
-torch>=2.0.0
+torch==2.14.1
 
 # Model Explainability
-shap>=0.42.0
+shap==0.54.1
 
 # Application / Dashboard
-streamlit>=1.28.0
-plotly>=5.15.0
-matplotlib>=3.7.0
-seaborn>=0.12.0
+streamlit==1.66.1
+plotly==7.1.0
+matplotlib==3.11.2
+seaborn==0.13.2
 
 # Utilities
-pyyaml>=6.0
-pytest>=7.3.0
-python-dotenv>=1.0.0
+pyyaml==6.0.3
+pytest==9.2.0
+python-dotenv==1.2.4
