@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.evaluation.metrics_registry import active_run, load_metrics
+from src.evaluation.metrics_registry import active_run, backtest_headline, chance_statement, load_metrics
 from src.utils.config import PROJECT_ROOT
 
 TEMPLATE_PATH = PROJECT_ROOT / "docs" / "README.template.md"
@@ -95,7 +95,9 @@ def _perm_block(run):
         return f"Permutation importance has not been computed for run `{run['run_id']}` yet."
     df = pd.read_csv(PROJECT_ROOT / path)
     feat_col, imp_col = df.columns[0], df.columns[1]
-    lines = ["```text", "Top Features Ranked by Drop in Test ROC-AUC:", ""]
+    split = run["artifacts"].get("perm_importance_split", "test")
+    lines = [f"Measured on the **{split}** split (seeded shuffles, 5 repeats).", "", "```text",
+             f"Top Features Ranked by Drop in {split.capitalize()} ROC-AUC:", ""]
     for i, (_, r) in enumerate(df.head(10).iterrows(), 1):
         lines.append(f"{i}. {r[feat_col]:<18} [{r[imp_col]:+.4f}]")
     lines.append("```")
@@ -176,6 +178,111 @@ def _backtest_blocks(run):
     }
 
 
+def _audit_table(metrics: dict, run: dict) -> str:
+    """Previous run vs active run, to show what the audit changed."""
+    others = [rid for rid in metrics["runs"] if rid != run["run_id"]]
+    if not others:
+        return "No previous run is recorded."
+    old = {"run_id": others[0], **metrics["runs"][others[0]]}
+    om, nm = old["metrics"]["mlp"], run["metrics"]["mlp"]
+    ob, nb = old.get("backtest") or {}, run.get("backtest") or {}
+    def row(label, a, b):
+        return f"| {label} | {a} | {b} |"
+    rows = [f"| | Previous run `{old['run_id']}` | Current run `{run['run_id']}` |", "|---|---|---|",
+            row("Calendar rule", old["data"]["calendar_rule"], run["data"]["calendar_rule"]),
+            row("Feature matrix rows", f"{old['data']['rows']:,}", f"{run['data']['rows']:,}"),
+            row("Split", old["split"]["method"], run["split"]["method"]),
+            row("Train / val / test rows", " / ".join(f"{old['split'][k]['n']:,}" for k in ("train", "val", "test")),
+                " / ".join(f"{run['split'][k]['n']:,}" for k in ("train", "val", "test"))),
+            row("Feature set chosen on", f"{old['feature_selection']['split']} ({old['feature_selection']['selected_level']})",
+                f"{run['feature_selection']['split']} ({run['feature_selection']['selected_level']})")]
+    for k in ("ROC-AUC", "PR-AUC", "Accuracy", "Balanced Accuracy", "Precision", "Recall", "F1"):
+        fmt = (lambda x: f"{x:.4f}") if k in ("ROC-AUC", "PR-AUC", "F1") else _pct
+        rows.append(row(f"MLP validation {k}", fmt(om["val"][k]), fmt(nm["val"][k])))
+    for k in ("ROC-AUC", "PR-AUC", "Accuracy", "Balanced Accuracy", "Precision", "Recall", "F1"):
+        fmt = (lambda x: f"{x:.4f}") if k in ("ROC-AUC", "PR-AUC", "F1") else _pct
+        rows.append(row(f"MLP test {k}", fmt(om["test"][k]), fmt(nm["test"][k])))
+    if "as_reported" in ob:
+        a = ob["as_reported"]
+        rows.append(row("Backtest as originally reported (old engine)",
+                        f"{_signed_pct(a['Strategy_Total_Return'])} vs {_signed_pct(a['BnH_Total_Return'])} B&H, Sharpe {a['Strategy_Sharpe']:.2f} (rf 0%)", "—"))
+    for ex in ("close_to_close", "next_open"):
+        if ex in ob.get("variants", {}) and ex in nb.get("variants", {}):
+            a, b = ob["variants"][ex], nb["variants"][ex]
+            fmt = lambda m: (f"{_signed_pct(m['Strategy_Total_Return'])} vs {_signed_pct(m['BnH_Total_Return'])} B&H, "
+                             f"Sharpe {m['Strategy_Sharpe']:.2f}, {m['Trades']} trades, {m['Days_Tested']} days")
+            rows.append(row(f"Backtest, fixed engine, {ex.replace('_', '-')}", fmt(a), fmt(b)))
+    bugs = "\n".join([
+        "**Bugs found and fixed during the audit:**",
+        "1. **Live inference** passed market context under the wrong keys, so the six NIFTY/VIX features were never built (live predictions always failed).",
+        "2. **Live inference** appended a 1-minute bar to daily data; features now come from completed daily sessions only.",
+        "3. **Holiday placeholder bars** (zero volume, no NIFTY/VIX bar) blanked 50-day windows and silently removed 368 sessions from the data.",
+        "4. **Targets** were computed on the next *surviving* row, so 19 labels spanned 3–88 sessions instead of one.",
+        "5. **Feature selection** compared feature sets on the test period; it now uses validation only.",
+        "6. **Backtest** used the next prediction row as 'tomorrow' (same bug as 4), had no next-open execution, and charged no final-exit or buy-and-hold costs.",
+        "7. **Reported numbers** in the README/dashboard that no code produced were removed; all numbers now come from `reports/metrics.json`.",
+    ])
+    return "\n".join(rows) + "\n\n" + bugs
+
+
+def _uncertainty_block(run):
+    u = run.get("uncertainty")
+    if not u:
+        return "Confidence intervals have not been computed for this run."
+    rows = ["| Model | Test ROC-AUC | 95% CI | Test Balanced Accuracy | 95% CI | Circular-shift p (AUC / BalAcc) |",
+            "|---|---|---|---|---|---|"]
+    for m, v in u["models"].items():
+        a, b, c = v["ROC-AUC"], v["Balanced Accuracy"], u["chance_test"][m]
+        rows.append(f"| {m} | {a['estimate']:.4f} | [{a['ci95'][0]:.4f}, {a['ci95'][1]:.4f}] | {_pct(b['estimate'])} | "
+                    f"[{_pct(b['ci95'][0])}, {_pct(b['ci95'][1])}] | {c['ROC-AUC']['p_value']:.3f} / {c['Balanced Accuracy']['p_value']:.3f} |")
+    diffs = ["| Paired difference | ROC-AUC | 95% CI | Balanced Accuracy | 95% CI |", "|---|---|---|---|---|"]
+    for d, v in u["differences"].items():
+        a, b = v["ROC-AUC"], v["Balanced Accuracy"]
+        diffs.append(f"| {d} | {a['estimate']:+.4f} | [{a['ci95'][0]:+.4f}, {a['ci95'][1]:+.4f}] | {b['estimate'] * 100:+.2f} pts | "
+                     f"[{b['ci95'][0] * 100:+.2f}, {b['ci95'][1] * 100:+.2f}] |")
+    sens = "; ".join(f"mean block {b}: MLP [{v['ROC-AUC CI95']['MLP'][0]:.3f}, {v['ROC-AUC CI95']['MLP'][1]:.3f}], "
+                     f"MLP − RF [{v['ROC-AUC CI95']['MLP - Random Forest'][0]:+.3f}, {v['ROC-AUC CI95']['MLP - Random Forest'][1]:+.3f}]"
+                     for b, v in u["block_length_sensitivity"].items())
+    any_sig = any(v["ROC-AUC"]["excludes_null"] for v in u["models"].values())
+    any_diff = any(v["ROC-AUC"]["excludes_null"] for v in u["differences"].values())
+    plain = (f"> **Plain reading:** {chance_statement(run).replace('<strong>', '**').replace('</strong>', '**')} "
+             f"{'At least one' if any_sig else 'No'} model's ROC-AUC interval excludes 0.5, and "
+             f"{'some' if any_diff else 'no'} paired difference between models excludes zero, so the MLP is "
+             f"{'' if any_diff else '**not** '}distinguishable from Random Forest or XGBoost on these {u['n_obs']} days.")
+    return "\n".join([
+        f"Method: {u['method']}, {u['n_boot']:,} resamples, mean block length {u['mean_block_length']:g} trading days "
+        f"(test predictions are autocorrelated, so days are resampled in runs). All models share the same resampled days, so the "
+        "differences are paired. The circular-shift p-value compares the observed score with scores obtained by shifting the "
+        "labels against the predictions (keeps both series' autocorrelation, removes any real alignment).", "",
+        "\n".join(rows), "", "\n".join(diffs), "", f"Block-length sensitivity (ROC-AUC 95% CI): {sens}.", "", plain])
+
+
+def _band_block(run):
+    b = run.get("threshold_band")
+    if not b:
+        return "The no-trade band experiment has not been run for this run."
+    rows = ["| Band (enter / exit) | Validation strategy | Validation buy & hold | Excess | Trades | Turnover/yr | Costs paid |",
+            "|---|---|---|---|---|---|---|"]
+    for g in b["validation_grid"]:
+        mark = " ✔ chosen" if g["half_width"] == b["chosen_half_width"] else ""
+        rows.append(f"| {g['Entry_Threshold']:.3f} / {g['Exit_Threshold']:.3f}{mark} | {_signed_pct(g['Strategy_Total_Return'])} | "
+                    f"{_signed_pct(g['BnH_Total_Return'])} | {_signed_pct(g['Excess_Return_vs_BnH'])} | {g['Trades']} | "
+                    f"{g['Annual_Turnover']:.0f}× | {_pct(g['Total_Cost_Paid'])} |")
+    t = b["test_result"]
+    lo, hi = b["validation_prob_range"]
+    beat_val = any(g["Excess_Return_vs_BnH"] > 0 for g in b["validation_grid"])
+    return "\n".join([
+        f"Long when P(up) ≥ upper, cash when P(up) < lower, otherwise keep the current position. Next-open execution, "
+        f"{_pct(b['cost_per_side'])} per side. Validation probabilities only span {lo:.3f}–{hi:.3f}, so the requested 0.55 / 0.45 "
+        "band never trades there; the grid also covers narrower bands. The band was chosen on validation by excess return over "
+        "buy & hold; the test set was evaluated once, for the chosen band.", "", "\n".join(rows), "",
+        f"**Test (once, band {t['Entry_Threshold']:.3f} / {t['Exit_Threshold']:.3f}):** strategy {_signed_pct(t['Strategy_Total_Return'])} vs "
+        f"buy & hold {_signed_pct(t['BnH_Total_Return'])} over the same {t['Days_Tested']} periods; Sharpe {t['Strategy_Sharpe']:.2f} vs "
+        f"{t['BnH_Sharpe']:.2f}; {t['Trades']} trades; costs {_pct(t['Total_Cost_Paid'])} of capital; turnover {t['Annual_Turnover']:.0f}×/yr.", "",
+        f"> **Plain reading:** the band cuts turnover and costs sharply, but {'some' if beat_val else 'no'} band beat buy & hold on "
+        f"validation, and the test result rests on {t['Trades']} trades — far too few to claim the strategy now survives costs."])
+
+
 def context(run: dict) -> dict:
     split, mlp, sel = run["split"], run["metrics"]["mlp"]["test"], run["feature_selection"]
     layers = run["model"]["layers"]
@@ -195,6 +302,8 @@ def context(run: dict) -> dict:
                                    else f"evaluated once; feature set chosen on {sel['split']}"),
         "selection_split": sel["split"],
         "abl_prev": f"{levels[-2]['ROC-AUC']:.3f}", "abl_last": f"{levels[-1]['ROC-AUC']:.3f}",
+        "backtest_headline": backtest_headline(run),
+        "uncertainty_block": _uncertainty_block(run), "band_block": _band_block(run),
         "results_table": _results_table(run), "ablation_table": _ablation_table(run), "perm_block": _perm_block(run),
         **_backtest_blocks(run),
     }
@@ -205,8 +314,9 @@ def context(run: dict) -> dict:
     return ctx
 
 
-def render_text(template: str, run: dict) -> str:
+def render_text(template: str, run: dict, metrics: dict = None) -> str:
     ctx = context(run)
+    ctx["audit_table"] = _audit_table(metrics or load_metrics(), run)
     missing = sorted(set(PLACEHOLDER.findall(template)) - set(ctx))
     if missing:
         raise KeyError(f"README template uses unknown placeholders: {missing}")
@@ -214,6 +324,7 @@ def render_text(template: str, run: dict) -> str:
 
 
 def render(template_path: Path = TEMPLATE_PATH, out_path: Path = README_PATH) -> str:
-    text = render_text(template_path.read_text(), active_run(load_metrics()))
+    metrics = load_metrics()
+    text = render_text(template_path.read_text(), active_run(metrics), metrics)
     out_path.write_text(text)
     return text

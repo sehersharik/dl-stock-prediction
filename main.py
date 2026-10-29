@@ -46,6 +46,8 @@ def main():
     explain_parser.add_argument("--ticker", required=True, help="Ticker symbol to process")
     explain_parser.add_argument("--model", required=True, choices=["mlp"], help="Model to explain")
     explain_parser.add_argument("--run", required=True, help="MLP registry run id (models/RELIANCE/mlp/<run>) trained on the current processed data")
+    explain_parser.add_argument("--split", choices=["val", "test"], default="val", help="Split to measure importance on (default: validation)")
+    explain_parser.add_argument("--shap", action="store_true", help="Also run SHAP (slow)")
     ablation_parser = subparsers.add_parser("ablation", help="Run feature ablation experiments")
     ablation_parser.add_argument("--ticker", required=True, help="Ticker symbol to process")
     train_parser = subparsers.add_parser("train", help="Train baseline or DL models")
@@ -54,6 +56,9 @@ def main():
     metrics_parser = subparsers.add_parser("metrics", help="Build reports/metrics.json (single source of reported results)")
     metrics_parser.add_argument("--new-run", required=True, help="MLP registry run id to include alongside the previous run")
     metrics_parser.add_argument("--active", required=True, help="Run id the dashboard, README and live engine should use")
+    band_parser = subparsers.add_parser("threshold-band", help="Choose a no-trade probability band on validation, evaluate on test once")
+    band_parser.add_argument("--ticker", required=True)
+    band_parser.add_argument("--run", required=True, help="MLP registry run id")
     readme_parser = subparsers.add_parser("readme", help="Render README.md from docs/README.template.md and reports/metrics.json")
     split_parser = subparsers.add_parser("splits", help="Validate and visualize chronological splits")
     split_parser.add_argument("--ticker", required=True, help="Ticker symbol to process")
@@ -202,7 +207,9 @@ def main():
             raise ValueError(f"Run {args.run} was not trained on the current processed data/split")
         # Use the run's own fitted scaler rather than refitting
         scaler = joblib.load(run_dir / "scaler.joblib")
-        X_train_s, X_test_s = (pd.DataFrame(scaler.transform(d), index=d.index, columns=d.columns) for d in (X_train, X_test))
+        X_train_s, X_eval_s = (pd.DataFrame(scaler.transform(d), index=d.index, columns=d.columns)
+                               for d in (X_train, X_val if args.split == "val" else X_test))
+        y_eval = y_val if args.split == "val" else y_test
         
         device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
         
@@ -217,11 +224,13 @@ def main():
             model.load_state_dict(torch.load(model_path, map_location=device))
             model.eval()
             
-            explainer = ModelExplainer(model, device, X.columns.tolist(), reports_dir, args.ticker, args.model)
-            explainer.run_permutation_importance(X_test_s.values, y_test.values)
-            explainer.run_shap(X_train_s.values, X_test_s.values)
+            # Outputs go into the run's registry folder, tagged with the split used
+            explainer = ModelExplainer(model, device, X.columns.tolist(), run_dir, args.ticker, f"{args.model}_{args.split}")
+            explainer.run_permutation_importance(X_eval_s.values, y_eval.values)
+            if args.shap:
+                explainer.run_shap(X_train_s.values, X_eval_s.values)
             
-            logger.info("Explainability complete. Review outputs in reports/ directory.")
+            logger.info(f"Explainability complete ({args.split} split). Outputs in {run_dir}")
         except Exception as e:
             import traceback
             logger.error(f"Explainability failed: {e}\n{traceback.format_exc()}")
@@ -312,6 +321,10 @@ def main():
     elif args.command == "metrics":
         from src.evaluation.metrics_registry import build
         build(args.new_run, args.active)
+
+    elif args.command == "threshold-band":
+        from src.experiments.threshold_band import run_threshold_band
+        run_threshold_band(args.ticker, args.run)
 
     elif args.command == "readme":
         from src.evaluation.readme_render import render

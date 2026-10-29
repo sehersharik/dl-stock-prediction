@@ -14,14 +14,8 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-F_GROUPS = {
-    "Raw": ["Close", "High", "Low", "Open", "Volume", "Returns"],
-    "Trend": ["SMA_20", "SMA_50", "SMA_200", "EMA_12", "EMA_26", "EMA_50"],
-    "Momentum": ["RSI_14", "MACD", "MACD_Signal", "MACD_Hist", "ROC", "Momentum"],
-    "Volatility": ["ATR", "Rolling_Vol", "BB_Upper", "BB_Middle", "BB_Lower", "BB_Width"],
-    "Volume": ["Vol_Change", "Vol_SMA_20", "Vol_Ratio", "OBV"],
-    "Context": ["NIFTY_Return", "NIFTY_Vol", "India_VIX"]
-}
+# Same groups as the feature ablation (the current stationary feature set)
+from src.experiments.feature_ablation import F_GROUPS
 
 class ModelExplainer:
     def __init__(self, model, device, feature_names: list, reports_dir: Path, ticker: str, model_name: str):
@@ -40,9 +34,13 @@ class ModelExplainer:
             logits = self.model(t)
             return torch.sigmoid(logits).cpu().numpy().flatten()
             
-    def run_permutation_importance(self, X: np.ndarray, y: np.ndarray, n_repeats: int = 5):
-        """Calculates permutation importance using ROC-AUC as the baseline metric."""
+    def run_permutation_importance(self, X: np.ndarray, y: np.ndarray, n_repeats: int = 5, seed: int = 42):
+        """Calculates permutation importance using ROC-AUC as the baseline metric.
+
+        Pass the split the importances should describe (the pipeline uses validation so
+        the test split is not re-used). Shuffles are seeded, so results are reproducible."""
         logger.info("Running permutation importance...")
+        rng = np.random.default_rng(seed)
         baseline_preds = self.predict_prob(X)
         try:
             baseline_score = roc_auc_score(y, baseline_preds)
@@ -56,7 +54,7 @@ class ModelExplainer:
         for i in range(X.shape[1]):
             for r in range(n_repeats):
                 X_shuffled = X.copy()
-                np.random.shuffle(X_shuffled[:, i])
+                X_shuffled[:, i] = rng.permutation(X_shuffled[:, i])
                 shuff_preds = self.predict_prob(X_shuffled)
                 try:
                     score = roc_auc_score(y, shuff_preds)

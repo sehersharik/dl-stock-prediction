@@ -63,22 +63,26 @@ class Backtester:
         raise ValueError(f"Unknown execution {execution!r}; expected one of {list(EXECUTIONS)}")
 
     def run(self, ticker: str, model_name: str, target_col: str = 'Target_Direction', threshold: float = 0.5,
-            pred_path: Path = None, save: bool = True, execution: str = "close_to_close"):
+            pred_path: Path = None, save: bool = True, execution: str = "close_to_close", exit_threshold: float = None,
+            preds: pd.DataFrame = None):
         logger.info(f"Initializing Backtest for {ticker} using {model_name} ({execution})...")
         logger.warning("DISCLAIMER: This is an experimental financial ML research system.")
         logger.warning("Historical backtest performance does NOT guarantee future returns. Do NOT trade this.")
 
         # Load out-of-sample predictions
-        if pred_path is None:
-            pred_path = self.project_root / 'data' / 'predictions' / f"{ticker}_{model_name}_{target_col}_test_preds.csv"
-        if not pred_path.exists():
-            logger.error(f"Prediction file not found: {pred_path}")
-            return
-        preds = pd.read_csv(pred_path, index_col=0, parse_dates=True)
+        if preds is None:
+            if pred_path is None:
+                pred_path = self.project_root / 'data' / 'predictions' / f"{ticker}_{model_name}_{target_col}_test_preds.csv"
+            if not pred_path.exists():
+                logger.error(f"Prediction file not found: {pred_path}")
+                return
+            preds = pd.read_csv(pred_path, index_col=0, parse_dates=True)
 
-        df = self.simulate(preds, self._session_prices(ticker), threshold, execution)
+        df = self.simulate(preds, self._session_prices(ticker), threshold, execution, exit_threshold)
         self.last_curve = df
         metrics = self._calculate_metrics(df, execution)
+        metrics["Entry_Threshold"] = float(threshold)
+        metrics["Exit_Threshold"] = float(threshold if exit_threshold is None else exit_threshold)
         if save:
             self._save_results(df, metrics, ticker, f"{model_name}_{execution}")
             self._plot_results(df, ticker, f"{model_name} ({execution})")
@@ -89,7 +93,21 @@ class Backtester:
         logger.info(f"Trades: {metrics['Trades']} | Win rate per trade: {metrics['Win_Rate_Trade']:.2%} | per day: {metrics['Win_Rate_Day']:.2%}")
         return metrics
 
-    def simulate(self, preds: pd.DataFrame, prices: pd.DataFrame, threshold: float, execution: str) -> pd.DataFrame:
+    @staticmethod
+    def signals(prob: pd.Series, enter: float, exit_: float) -> pd.Series:
+        """Long when P(up) >= enter, cash when P(up) < exit_, otherwise keep the current
+        position (hysteresis). enter == exit_ gives the plain threshold rule."""
+        pos, out = 0, []
+        for p in prob.values:
+            if p >= enter:
+                pos = 1
+            elif p < exit_:
+                pos = 0
+            out.append(pos)
+        return pd.Series(out, index=prob.index, dtype=int)
+
+    def simulate(self, preds: pd.DataFrame, prices: pd.DataFrame, threshold: float, execution: str,
+                 exit_threshold: float = None) -> pd.DataFrame:
         cost = self.transaction_cost + self.slippage
         df = preds[['Prob']].join(self.period_returns(prices, execution).rename('Period_Return'), how='left')
         missing = df['Period_Return'].isna()
@@ -99,7 +117,7 @@ class Backtester:
         df = df[~missing].copy()
 
         # 1 = Long, 0 = Cash
-        df['Signal'] = (df['Prob'] >= threshold).astype(int)
+        df['Signal'] = self.signals(df['Prob'], threshold, threshold if exit_threshold is None else exit_threshold)
         prev = df['Signal'].shift(1, fill_value=0)
         df['Position_Change'] = (df['Signal'] - prev).abs()
         # Close any open position at the end of the test period

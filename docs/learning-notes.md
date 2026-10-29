@@ -171,3 +171,40 @@ Re-running the old model's predictions through the fixed engine gives +18.9% vs 
 
 ### Interview soundbite
 "After fixing the backtest and using realistic execution and costs, the strategy lost 17% while buy-and-hold lost 1.4% over the same days. The model has a little gross signal close-to-close, but it trades too often (73× turnover a year) and the edge doesn't survive to the next day's open. That's a negative result, and it's the most useful finding in the project: classification accuracy just above 50% doesn't turn into a profitable daily strategy once costs and timing are real."
+
+---
+
+## Phase 5: How sure are we? (uncertainty)
+
+### Why a single number isn't enough
+A test ROC-AUC of 0.536 on 419 days could easily come out at 0.50 or 0.58 on another 419 days. A **confidence interval** gives the range of scores that would plausibly appear if we could re-run history many times.
+
+### Why a *block* bootstrap
+An ordinary bootstrap resamples days independently, as if they were unrelated. Here they aren't: the MLP's probability today is strongly linked to yesterday's (autocorrelation 0.49). Resampling single days would make the results look more certain than they are. The **stationary block bootstrap** resamples *runs* of consecutive days (random lengths, 10 on average). That keeps the day-to-day dependence. I checked block lengths of 5 and 20 too, and the intervals barely move.
+
+**Paired comparison:** every model is scored on the *same* resampled days. That makes "MLP minus Random Forest" a fair difference: both face the same easy and hard stretches.
+
+**Second check against chance (circular shift):** slide the labels against the predictions by 20+ days. That keeps both series' patterns but destroys any real link between them. If the real score isn't clearly better than the shifted scores, there's no evidence of skill.
+
+### Results (419 test days)
+| Model | ROC-AUC | 95% CI | Chance-test p |
+|---|---|---|---|
+| MLP | 0.536 | 0.481 – 0.591 | 0.09 |
+| Random Forest | 0.532 | 0.475 – 0.593 | 0.13 |
+| XGBoost | 0.513 | 0.466 – 0.564 | 0.34 |
+
+MLP − Random Forest: +0.005 (CI −0.052 to +0.060).
+
+**Plain reading:** every interval contains 0.5, so on this test set **none of the models is distinguishable from random guessing**. The MLP is **not** distinguishable from Random Forest or XGBoost either. Balanced accuracy tells the same story.
+
+### Can a no-trade band rescue the strategy?
+Idea: trade less. Go long only when the model is confident (P(up) ≥ upper), go to cash only when it's confident the other way (P(up) < lower), and otherwise keep the current position. Fewer trades means lower costs.
+- The requested 0.55 / 0.45 band **never trades on validation**, because the model's validation probabilities only range from 0.469 to 0.545. The model is never that confident. So I also tested narrower bands.
+- The band was chosen on **validation**, then the test set was evaluated **once**: ±0.02 (0.52 / 0.48).
+- Validation: **no band beat buy-and-hold** (best −3.2% behind).
+- Test: −0.16% vs −1.43% for buy-and-hold, with only **9 trades** and costs cut from 18.3% to 2.7%. Sharpe was still below buy-and-hold's.
+
+So the band fixes the cost problem but not the signal problem. 9 trades, chosen from a jumpy validation grid, are not evidence of a working strategy.
+
+### Interview soundbite
+"I put block-bootstrap confidence intervals on the test metrics because daily predictions are autocorrelated. Every interval included 0.5, and the MLP couldn't be separated from a Random Forest. A no-trade band cut costs from 18% to under 3%, but it never beat buy-and-hold on validation. The honest conclusion is that I couldn't find a reliable, tradeable next-day signal for Reliance with these features."

@@ -14,6 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
 from src.utils.config import load_config
+from src.evaluation.metrics_registry import backtest_headline, chance_statement
 from src.inference.engine import InferenceEngine
 from src.data.live_provider import YFinanceLiveProvider
 
@@ -367,6 +368,14 @@ FEATURE_TRANSLATIONS = {
 # ==============================================================================
 with tab_overview:
     
+    # ── BACKTEST HEADLINE (plain statement, generated from metrics.json) ───────
+    st.markdown(f"""
+    <div style="background-color: #FEF2F2; border: 1px solid #FECACA; border-left: 4px solid #DC2626; border-radius: 6px; padding: 0.8rem 1.1rem; margin-bottom: 1rem; font-size: 0.9rem; color: #7F1D1D;">
+      <strong>Backtest result:</strong> {backtest_headline(backend_data['run'])}
+      Model probabilities below are research outputs, not trading signals.
+    </div>
+    """, unsafe_allow_html=True)
+
     # ── STOCK SELECTOR & HEADER ────────────────────────────────────────────────
     col_sel, col_info = st.columns([1, 3])
     
@@ -531,7 +540,8 @@ with tab_overview:
 
     # ── WHY THE MODEL THINKS THIS ("Why this prediction?") ────────────────────
     st.markdown('<div class="section-heading">Why this prediction?</div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-subheading">Key indicators that influenced the model\'s estimate, ranked by feature importance on out-of-sample data.</div>', unsafe_allow_html=True)
+    perm_split = backend_data['run']['artifacts'].get('perm_importance_split', 'out-of-sample')
+    st.markdown(f'<div class="section-subheading">Key indicators the model relies on, ranked by permutation importance (drop in ROC-AUC when a feature is shuffled) on the {perm_split} period.</div>', unsafe_allow_html=True)
     
     exp_data = backend_data.get('explainability')
     
@@ -742,7 +752,7 @@ with tab_overview:
 
     st.markdown(f"""
     <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 0.9rem 1.1rem; margin-top: 1rem; font-size: 0.88rem; color: #475569;">
-      <strong>Plain-English Verdict:</strong> These results indicate a modest predictive signal (ROC-AUC {roc_auc_val:.4f}) rather than highly accurate forecasting. Whether it is reliably better than chance has not yet been tested. Performance can vary across market conditions.
+      <strong>Plain-English Verdict:</strong> Test ROC-AUC is {roc_auc_val:.4f} (0.5 = random guessing). {chance_statement(backend_data['run'])} Performance can vary across market conditions.
     </div>
     """, unsafe_allow_html=True)
 

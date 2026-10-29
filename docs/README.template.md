@@ -7,6 +7,8 @@
 > **Validated Deep Learning Architecture:** Compact PyTorch MLP `[32, 16]` with L2 Regularization & Class-Weighted BCE Loss  
 > **Reported results:** generated from `reports/metrics.json` (run `{{run_id}}`) | {{header_backtest}}
 
+> ⚠️ **Backtest result:** {{backtest_headline}}
+
 ---
 
 ## Executive Summary & System Metadata
@@ -240,6 +242,20 @@ Financial time series exhibit strong temporal dependence and regime shifts. Rand
 
 ---
 
+## Statistical Uncertainty (Test Set)
+
+{{uncertainty_block}}
+
+---
+
+## Audit Trail: Previous Run vs Current Run
+
+How the reported results changed when the bugs below were found and fixed. Both columns are rebuilt from saved artifacts by `python main.py metrics`.
+
+{{audit_table}}
+
+---
+
 ## Controlled Feature Ablation Progression (F0 to F5)
 
 {{ablation_table}}
@@ -248,7 +264,7 @@ Financial time series exhibit strong temporal dependence and regime shifts. Rand
 
 ## Model Explainability & Permutation Feature Importance
 
-Computed by shuffling each feature column on the test set and measuring the drop in model ROC-AUC:
+Computed by shuffling each feature column and measuring the drop in model ROC-AUC. This shows what the *model* relies on, not what causes price moves.
 
 {{perm_block}}
 
@@ -271,6 +287,10 @@ Computed by shuffling each feature column on the test set and measuring the drop
 ## Transaction Cost Sensitivity & Stress Testing
 
 {{sensitivity_table}}
+
+### No-Trade Band (chosen on validation)
+
+{{band_block}}
 
 {{winrate_note}}
 

@@ -7,6 +7,8 @@
 > **Validated Deep Learning Architecture:** Compact PyTorch MLP `[32, 16]` with L2 Regularization & Class-Weighted BCE Loss  
 > **Reported results:** generated from `reports/metrics.json` (run `20261029_200739_879921`) | Test backtest (next-open, after costs): strategy -17.08% vs -1.43% buy & hold
 
+> ⚠️ **Backtest result:** After realistic costs and next-open execution, the strategy underperforms buy-and-hold (-17.08% vs -1.43% over the same 419 test periods, 0.15% per side).
+
 ---
 
 ## Executive Summary & System Metadata
@@ -248,6 +250,67 @@ Financial time series exhibit strong temporal dependence and regime shifts. Rand
 
 ---
 
+## Statistical Uncertainty (Test Set)
+
+Method: stationary block bootstrap (Politis & Romano), percentile 95% CI, 5,000 resamples, mean block length 10 trading days (test predictions are autocorrelated, so days are resampled in runs). All models share the same resampled days, so the differences are paired. The circular-shift p-value compares the observed score with scores obtained by shifting the labels against the predictions (keeps both series' autocorrelation, removes any real alignment).
+
+| Model | Test ROC-AUC | 95% CI | Test Balanced Accuracy | 95% CI | Circular-shift p (AUC / BalAcc) |
+|---|---|---|---|---|---|
+| MLP | 0.5363 | [0.4812, 0.5914] | 52.82% | [48.69%, 56.89%] | 0.094 / 0.144 |
+| Random Forest | 0.5318 | [0.4747, 0.5929] | 52.50% | [47.98%, 57.29%] | 0.129 / 0.178 |
+| XGBoost | 0.5126 | [0.4659, 0.5639] | 52.26% | [48.14%, 56.58%] | 0.344 / 0.239 |
+
+| Paired difference | ROC-AUC | 95% CI | Balanced Accuracy | 95% CI |
+|---|---|---|---|---|
+| MLP - Random Forest | +0.0045 | [-0.0523, +0.0596] | +0.32 pts | [-4.56, +5.05] |
+| MLP - XGBoost | +0.0237 | [-0.0367, +0.0847] | +0.56 pts | [-4.68, +5.74] |
+
+Block-length sensitivity (ROC-AUC 95% CI): mean block 5: MLP [0.483, 0.593], MLP − RF [-0.054, +0.061]; mean block 20: MLP [0.476, 0.595], MLP − RF [-0.047, +0.056].
+
+> **Plain reading:** The 95% block-bootstrap interval for ROC-AUC is [0.481, 0.591], so on this test set the model is **not** distinguishable from random guessing (0.5). No model's ROC-AUC interval excludes 0.5, and no paired difference between models excludes zero, so the MLP is **not** distinguishable from Random Forest or XGBoost on these 419 days.
+
+---
+
+## Audit Trail: Previous Run vs Current Run
+
+How the reported results changed when the bugs below were found and fixed. Both columns are rebuilt from saved artifacts by `python main.py metrics`.
+
+| | Previous run `20261007_003042` | Current run `20261029_200739_879921` |
+|---|---|---|
+| Calendar rule | none: holiday placeholder bars kept, leaving ~50-row gaps after each | NIFTY dates define NSE sessions; zero-volume flat placeholder bars dropped |
+| Feature matrix rows | 1,890 | 2,230 |
+| Split | 70/15/15 by row count | fixed dates: train <= 2023-10-19, val <= 2024-12-20, test <= 2026-09-10 |
+| Train / val / test rows | 1,323 / 283 / 284 | 1,513 / 283 / 419 |
+| Feature set chosen on | test (F5) | validation (F5) |
+| MLP validation ROC-AUC | 0.5390 | 0.5473 |
+| MLP validation PR-AUC | 0.5708 | 0.5984 |
+| MLP validation Accuracy | 54.77% | 51.94% |
+| MLP validation Balanced Accuracy | 54.99% | 52.68% |
+| MLP validation Precision | 58.33% | 56.76% |
+| MLP validation Recall | 51.33% | 41.72% |
+| MLP validation F1 | 0.5461 | 0.4809 |
+| MLP test ROC-AUC | 0.5676 | 0.5363 |
+| MLP test PR-AUC | 0.5301 | 0.5112 |
+| MLP test Accuracy | 57.39% | 52.98% |
+| MLP test Balanced Accuracy | 57.39% | 52.82% |
+| MLP test Precision | 58.68% | 53.29% |
+| MLP test Recall | 50.00% | 39.13% |
+| MLP test F1 | 0.5399 | 0.4513 |
+| Backtest as originally reported (old engine) | +23.80% vs +5.13% B&H, Sharpe 1.45 (rf 0%) | — |
+| Backtest, fixed engine, close-to-close | +18.90% vs +16.37% B&H, Sharpe 0.78, 32 trades, 283 days | -6.49% vs -0.79% B&H, Sharpe -0.73, 61 trades, 419 days |
+| Backtest, fixed engine, next-open | +14.83% vs +15.73% B&H, Sharpe 0.57, 32 trades, 283 days | -17.08% vs -1.43% B&H, Sharpe -1.11, 61 trades, 419 days |
+
+**Bugs found and fixed during the audit:**
+1. **Live inference** passed market context under the wrong keys, so the six NIFTY/VIX features were never built (live predictions always failed).
+2. **Live inference** appended a 1-minute bar to daily data; features now come from completed daily sessions only.
+3. **Holiday placeholder bars** (zero volume, no NIFTY/VIX bar) blanked 50-day windows and silently removed 368 sessions from the data.
+4. **Targets** were computed on the next *surviving* row, so 19 labels spanned 3–88 sessions instead of one.
+5. **Feature selection** compared feature sets on the test period; it now uses validation only.
+6. **Backtest** used the next prediction row as 'tomorrow' (same bug as 4), had no next-open execution, and charged no final-exit or buy-and-hold costs.
+7. **Reported numbers** in the README/dashboard that no code produced were removed; all numbers now come from `reports/metrics.json`.
+
+---
+
 ## Controlled Feature Ablation Progression (F0 to F5)
 
 | Feature Level | Feature Groups Included | Total Features | MLP Validation ROC-AUC | MLP Validation Accuracy | MLP Validation F1 |
@@ -265,9 +328,24 @@ Financial time series exhibit strong temporal dependence and regime shifts. Rand
 
 ## Model Explainability & Permutation Feature Importance
 
-Computed by shuffling each feature column on the test set and measuring the drop in model ROC-AUC:
+Computed by shuffling each feature column and measuring the drop in model ROC-AUC. This shows what the *model* relies on, not what causes price moves.
 
-Permutation importance has not been computed for run `20261029_200739_879921` yet.
+Measured on the **validation** split (seeded shuffles, 5 repeats).
+
+```text
+Top Features Ranked by Drop in Validation ROC-AUC:
+
+1. NIFTY_Return_1d    [+0.0181]
+2. SMA20_50_Ratio     [+0.0125]
+3. SMA50_200_Ratio    [+0.0106]
+4. MACD_Hist_Ratio    [+0.0079]
+5. Dist_SMA200        [+0.0076]
+6. NIFTY_Dist_SMA50   [+0.0071]
+7. ROC_12             [+0.0067]
+8. BB_Width           [+0.0059]
+9. Return_10d         [+0.0053]
+10. Vol_Ratio_20       [+0.0049]
+```
 
 ---
 
@@ -321,6 +399,25 @@ Permutation importance has not been computed for run `20261029_200739_879921` ye
 | **0.30%** | 0.20% + 0.10% | -30.97% | -1.73% | -1.85 | -31.28% | 26.2% | 40.1% |
 
 **Sharpe vs risk-free assumption (next-open, default cost):** rf 0%: -0.70 (buy & hold 0.08) · rf 5%: -1.04 (buy & hold -0.12) · rf 6%: -1.11 (buy & hold -0.16) · rf 7%: -1.17 (buy & hold -0.20)
+
+### No-Trade Band (chosen on validation)
+
+Long when P(up) ≥ upper, cash when P(up) < lower, otherwise keep the current position. Next-open execution, 0.15% per side. Validation probabilities only span 0.469–0.545, so the requested 0.55 / 0.45 band never trades there; the grid also covers narrower bands. The band was chosen on validation by excess return over buy & hold; the test set was evaluated once, for the chosen band.
+
+| Band (enter / exit) | Validation strategy | Validation buy & hold | Excess | Trades | Turnover/yr | Costs paid |
+|---|---|---|---|---|---|---|
+| 0.500 / 0.500 | -14.68% | +7.17% | -21.84% | 40 | 71× | 12.00% |
+| 0.505 / 0.495 | +1.07% | +7.17% | -6.10% | 20 | 36× | 6.00% |
+| 0.510 / 0.490 | -9.56% | +7.17% | -16.73% | 12 | 21× | 3.60% |
+| 0.515 / 0.485 | -1.59% | +7.17% | -8.76% | 8 | 14× | 2.40% |
+| 0.520 / 0.480 ✔ chosen | +4.02% | +7.17% | -3.15% | 7 | 12× | 2.10% |
+| 0.525 / 0.475 | -6.52% | +7.17% | -13.68% | 3 | 5× | 0.90% |
+| 0.530 / 0.470 | +1.84% | +7.17% | -5.32% | 2 | 4× | 0.60% |
+| 0.550 / 0.450 | +0.00% | +7.17% | -7.17% | 0 | 0× | 0.00% |
+
+**Test (once, band 0.520 / 0.480):** strategy -0.16% vs buy & hold -1.43% over the same 419 periods; Sharpe -0.28 vs -0.16; 9 trades; costs 2.70% of capital; turnover 11×/yr.
+
+> **Plain reading:** the band cuts turnover and costs sharply, but no band beat buy & hold on validation, and the test result rests on 9 trades — far too few to claim the strategy now survives costs.
 
 > **Why per-day win rate and precision can coincide:** with zero costs and *close-to-close* execution, the strategy is long exactly on the days the model predicts UP and earns exactly the target return, so the per-day win rate equals the model's test precision (53.29%) by construction. With next-open execution or with costs, the two differ.
 

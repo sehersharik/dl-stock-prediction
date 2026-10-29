@@ -18,6 +18,7 @@ import torch
 from src.backtesting.engine import Backtester
 from src.evaluation.metrics import evaluate_classification
 from src.evaluation.splitter import TimeSeriesSplitter
+from src.evaluation.uncertainty import bootstrap, circular_shift_test
 from src.experiments.feature_ablation import get_feature_set
 from src.features.generator import align_trading_calendar
 from src.models.dl_models import ConfigurableMLP
@@ -53,6 +54,30 @@ def active_run(metrics: dict = None) -> dict:
     metrics = metrics or load_metrics()
     run_id = metrics["active_run"]
     return {"run_id": run_id, **metrics["runs"][run_id]}
+
+
+def backtest_headline(run: dict) -> str:
+    """One plain sentence on whether the strategy beat buy & hold after costs (headline execution)."""
+    bt = run.get("backtest")
+    if not bt:
+        return "The historical backtest for this run has not been produced yet."
+    d = bt["variants"][bt["headline_execution"]]
+    verb = "outperforms" if d["Strategy_Total_Return"] > d["BnH_Total_Return"] else "underperforms"
+    return (f"After realistic costs and next-open execution, the strategy {verb} buy-and-hold "
+            f"({d['Strategy_Total_Return']:+.2%} vs {d['BnH_Total_Return']:+.2%} over the same {d['Days_Tested']} test periods, "
+            f"{bt['cost_per_side']:.2%} per side).")
+
+
+def chance_statement(run: dict) -> str:
+    """Plain sentence on whether the MLP's test ROC-AUC is distinguishable from 0.5."""
+    u = run.get("uncertainty")
+    if not u:
+        return "Whether it is reliably better than chance has not yet been tested."
+    a = u["models"]["MLP"]["ROC-AUC"]
+    lo, hi = a["ci95"]
+    verdict = "is distinguishable from" if a["excludes_null"] else "is <strong>not</strong> distinguishable from"
+    return (f"The 95% block-bootstrap interval for ROC-AUC is [{lo:.3f}, {hi:.3f}], so on this test set the model {verdict} "
+            f"random guessing (0.5).")
 
 
 def _rel(path: Path) -> str:
@@ -141,6 +166,35 @@ def _backtest_block(pred_path: Path, config: dict, run_id: str) -> dict:
     }
 
 
+UNCERTAINTY_MODELS = {"MLP": None, "Random Forest": "random_forest", "XGBoost": "xgboost"}
+BLOCK_SENSITIVITY = [5.0, 20.0]
+
+
+def _uncertainty_block(run_dir: Path, test_index: pd.DatetimeIndex) -> dict:
+    """Block-bootstrap CIs and a chance test for test ROC-AUC / balanced accuracy."""
+    models = {}
+    for name, key in UNCERTAINTY_MODELS.items():
+        path = run_dir / "test_preds.csv" if key is None else PROJECT_ROOT / "data" / "predictions" / f"{TICKER}_{key}_{TARGET}_test_preds.csv"
+        d = pd.read_csv(path, index_col=0, parse_dates=True)
+        if not d.index.equals(test_index):
+            raise ValueError(f"{name} test predictions do not cover the run's test dates")
+        models[name] = d
+    y = models["MLP"]["True"].astype(int).values
+    for name, d in models.items():
+        if not (d["True"].astype(int).values == y).all():
+            raise ValueError(f"{name} labels differ from the MLP's")
+    arrays = {n: (d["Prob"].values, d["Pred"].astype(int).values) for n, d in models.items()}
+    main = bootstrap(y, arrays, reference="MLP", n_boot=5000, mean_block=10.0)
+    sens = {f"{b:g}": {k: {m: v["ROC-AUC"]["ci95"] for m, v in r["models"].items()} | {"MLP - Random Forest": r["differences"]["MLP - Random Forest"]["ROC-AUC"]["ci95"]}
+                       for k in ["ROC-AUC CI95"]}
+            for b in BLOCK_SENSITIVITY for r in [bootstrap(y, arrays, reference="MLP", n_boot=2000, mean_block=b)]}
+    return {**main, "prediction_sources": {n: _rel(run_dir / "test_preds.csv") if k is None else
+                                           _rel(PROJECT_ROOT / "data" / "predictions" / f"{TICKER}_{k}_{TARGET}_test_preds.csv")
+                                           for n, k in UNCERTAINTY_MODELS.items()},
+            "block_length_sensitivity": sens,
+            "chance_test": {n: circular_shift_test(y, *arrays[n]) for n in arrays}}
+
+
 def _baselines(models_dir: Path, names: list, feature_list: list = None) -> dict:
     out = {}
     for name in names:
@@ -200,7 +254,8 @@ def _old_run_entry(config: dict) -> dict:
                                              "sessions across data gaps); close-to-close; no final-exit or buy-and-hold costs; Sharpe with rf = 0."}},
         "artifacts": {"model": _rel(run_dir / "model.pt"), "scaler": _rel(run_dir / "scaler.joblib"),
                       "test_preds": _rel(pred_path),
-                      "perm_importance": _rel(A / "reports" / f"{TICKER}_mlp_perm_importance.csv")},
+                      "perm_importance": _rel(A / "reports" / f"{TICKER}_mlp_perm_importance.csv"),
+                      "perm_importance_split": "test"},
     }
 
 
@@ -219,6 +274,8 @@ def _registry_run_entry(run_id: str, config: dict) -> dict:
     nifty = pd.read_csv(raw_dir / "NSEI_10y.csv", index_col=0, parse_dates=True)
     dropped = raw.index.difference(align_trading_calendar(raw, {"NIFTY": nifty}).index)
     sd = config['training']['split_dates']
+    perm = run_dir / f"{TICKER}_mlp_val_perm_importance.csv"  # python main.py explain --run <id> --split val
+    band = PROJECT_ROOT / "reports" / f"{TICKER}_threshold_band.json"  # python main.py threshold-band --run <id>
     return {
         "label": "Phase 3 retrain (cleaned calendar; feature set chosen on validation)",
         "model": _model_block(features, config),
@@ -236,9 +293,11 @@ def _registry_run_entry(run_id: str, config: dict) -> dict:
         "metrics": {"mlp": meta["metrics"],
                     "baselines": _baselines(PROJECT_ROOT / "models", ["majority", "logistic", "random_forest", "xgboost"], features)},
         "backtest": _backtest_block(run_dir / "test_preds.csv", config, run_id),
-        "pending": ["permutation importance"],
+        "uncertainty": _uncertainty_block(run_dir, Xte.index),
+        **({"threshold_band": json.loads(band.read_text())} if band.exists() and json.loads(band.read_text())["run_id"] == run_id else {}),
         "artifacts": {"model": _rel(run_dir / "model.pt"), "scaler": _rel(run_dir / "scaler.joblib"),
-                      "test_preds": _rel(run_dir / "test_preds.csv")},
+                      "test_preds": _rel(run_dir / "test_preds.csv"),
+                      **({"perm_importance": _rel(perm), "perm_importance_split": "validation"} if perm.exists() else {})},
     }
 
 

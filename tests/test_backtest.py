@@ -84,6 +84,14 @@ class TestBacktester(unittest.TestCase):
         eq = df["Strategy_Equity"]
         self.assertAlmostEqual(df["Strategy_Drawdown"].min(), (eq / eq.cummax() - 1).min())
 
+    def test_band_holds_position_between_thresholds(self):
+        sig = Backtester.signals(pd.Series([0.50, 0.56, 0.52, 0.48, 0.44, 0.50, 0.55]), 0.55, 0.45)
+        self.assertEqual(sig.tolist(), [0, 1, 1, 1, 0, 0, 1])
+
+    def test_plain_threshold_is_unchanged_by_band_logic(self):
+        prob = pd.Series([0.49, 0.50, 0.51, 0.3, 0.7])
+        self.assertEqual(Backtester.signals(prob, 0.5, 0.5).tolist(), (prob >= 0.5).astype(int).tolist())
+
 
 if __name__ == '__main__':
     unittest.main()

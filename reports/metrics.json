@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-29T20:50:03",
+  "generated_at": "2026-10-29T21:04:46",
   "generated_by": "python main.py metrics",
   "ticker": "RELIANCE.NS",
   "target": "Target_Direction",
@@ -537,7 +537,9 @@
             "Avg_Trade_Return": 0.0045360695841405035,
             "Position_Changes": 64,
             "Annual_Turnover": 56.98939929328622,
-            "Total_Cost_Paid": 0.096
+            "Total_Cost_Paid": 0.096,
+            "Entry_Threshold": 0.5,
+            "Exit_Threshold": 0.5
           },
           "close_to_close": {
             "Execution": "close_to_close",
@@ -571,7 +573,9 @@
             "Avg_Trade_Return": 0.00564828319428317,
             "Position_Changes": 64,
             "Annual_Turnover": 56.98939929328622,
-            "Total_Cost_Paid": 0.096
+            "Total_Cost_Paid": 0.096,
+            "Entry_Threshold": 0.5,
+            "Exit_Threshold": 0.5
           }
         },
         "default_index": 1,
@@ -611,7 +615,9 @@
             "Avg_Trade_Return": 0.007548759030514874,
             "Position_Changes": 64,
             "Annual_Turnover": 56.98939929328622,
-            "Total_Cost_Paid": 0.0
+            "Total_Cost_Paid": 0.0,
+            "Entry_Threshold": 0.5,
+            "Exit_Threshold": 0.5
           },
           {
             "transaction_cost": 0.001,
@@ -648,7 +654,9 @@
             "Avg_Trade_Return": 0.0045360695841405035,
             "Position_Changes": 64,
             "Annual_Turnover": 56.98939929328622,
-            "Total_Cost_Paid": 0.096
+            "Total_Cost_Paid": 0.096,
+            "Entry_Threshold": 0.5,
+            "Exit_Threshold": 0.5
           },
           {
             "transaction_cost": 0.002,
@@ -685,7 +693,9 @@
             "Avg_Trade_Return": 0.002530115989458334,
             "Position_Changes": 64,
             "Annual_Turnover": 56.98939929328622,
-            "Total_Cost_Paid": 0.16
+            "Total_Cost_Paid": 0.16,
+            "Entry_Threshold": 0.5,
+            "Exit_Threshold": 0.5
           },
           {
             "transaction_cost": 0.002,
@@ -722,7 +732,9 @@
             "Avg_Trade_Return": 0.001527891002987336,
             "Position_Changes": 64,
             "Annual_Turnover": 56.98939929328622,
-            "Total_Cost_Paid": 0.192
+            "Total_Cost_Paid": 0.192,
+            "Entry_Threshold": 0.5,
+            "Exit_Threshold": 0.5
           }
         ],
         "risk_free_sensitivity": {
@@ -768,7 +780,8 @@
         "model": "models/RELIANCE/mlp/20261007_003042/model.pt",
         "scaler": "models/RELIANCE/mlp/20261007_003042/scaler.joblib",
         "test_preds": "archive/run_20261007_003042/data/predictions/RELIANCE.NS_mlp_Target_Direction_test_preds.csv",
-        "perm_importance": "archive/run_20261007_003042/reports/RELIANCE.NS_mlp_perm_importance.csv"
+        "perm_importance": "archive/run_20261007_003042/reports/RELIANCE.NS_mlp_perm_importance.csv",
+        "perm_importance_split": "test"
       }
     },
     "20261029_200739_879921": {
@@ -1242,7 +1255,9 @@
             "Avg_Trade_Return": -0.002888669813390483,
             "Position_Changes": 122,
             "Annual_Turnover": 73.37470167064438,
-            "Total_Cost_Paid": 0.183
+            "Total_Cost_Paid": 0.183,
+            "Entry_Threshold": 0.5,
+            "Exit_Threshold": 0.5
           },
           "close_to_close": {
             "Execution": "close_to_close",
@@ -1276,7 +1291,9 @@
             "Avg_Trade_Return": -0.0009101979386653045,
             "Position_Changes": 122,
             "Annual_Turnover": 73.37470167064438,
-            "Total_Cost_Paid": 0.183
+            "Total_Cost_Paid": 0.183,
+            "Entry_Threshold": 0.5,
+            "Exit_Threshold": 0.5
           }
         },
         "default_index": 1,
@@ -1316,7 +1333,9 @@
             "Avg_Trade_Return": 0.00010873205199121033,
             "Position_Changes": 122,
             "Annual_Turnover": 73.37470167064438,
-            "Total_Cost_Paid": 0.0
+            "Total_Cost_Paid": 0.0,
+            "Entry_Threshold": 0.5,
+            "Exit_Threshold": 0.5
           },
           {
             "transaction_cost": 0.001,
@@ -1353,7 +1372,9 @@
             "Avg_Trade_Return": -0.002888669813390483,
             "Position_Changes": 122,
             "Annual_Turnover": 73.37470167064438,
-            "Total_Cost_Paid": 0.183
+            "Total_Cost_Paid": 0.183,
+            "Entry_Threshold": 0.5,
+            "Exit_Threshold": 0.5
           },
           {
             "transaction_cost": 0.002,
@@ -1390,7 +1411,9 @@
             "Avg_Trade_Return": -0.004884438576979383,
             "Position_Changes": 122,
             "Annual_Turnover": 73.37470167064438,
-            "Total_Cost_Paid": 0.30500000000000005
+            "Total_Cost_Paid": 0.30500000000000005,
+            "Entry_Threshold": 0.5,
+            "Exit_Threshold": 0.5
           },
           {
             "transaction_cost": 0.002,
@@ -1427,7 +1450,9 @@
             "Avg_Trade_Return": -0.005881573214774298,
             "Position_Changes": 122,
             "Annual_Turnover": 73.37470167064438,
-            "Total_Cost_Paid": 0.366
+            "Total_Cost_Paid": 0.366,
+            "Entry_Threshold": 0.5,
+            "Exit_Threshold": 0.5
           }
         ],
         "risk_free_sensitivity": {
@@ -1453,13 +1478,411 @@
           "close_to_close": "reports/backtests/20261029_200739_879921_close_to_close_curve.csv"
         }
       },
-      "pending": [
-        "permutation importance"
-      ],
+      "uncertainty": {
+        "method": "stationary block bootstrap (Politis & Romano), percentile 95% CI",
+        "n_boot": 5000,
+        "mean_block_length": 10.0,
+        "seed": 42,
+        "n_obs": 419,
+        "models": {
+          "MLP": {
+            "ROC-AUC": {
+              "estimate": 0.5362774587548993,
+              "ci95": [
+                0.4811893832504758,
+                0.5914152013774858
+              ],
+              "boot_std": 0.028407690951974086,
+              "excludes_null": false,
+              "share_draws_at_or_below_null": 0.1012
+            },
+            "Balanced Accuracy": {
+              "estimate": 0.5281993437243643,
+              "ci95": [
+                0.48685074023924935,
+                0.5688650456462082
+              ],
+              "boot_std": 0.02083065158076663,
+              "excludes_null": false,
+              "share_draws_at_or_below_null": 0.0898
+            }
+          },
+          "Random Forest": {
+            "ROC-AUC": {
+              "estimate": 0.531765563759001,
+              "ci95": [
+                0.47472460151702267,
+                0.5928911603471904
+              ],
+              "boot_std": 0.03007408892901899,
+              "excludes_null": false,
+              "share_draws_at_or_below_null": 0.1384
+            },
+            "Balanced Accuracy": {
+              "estimate": 0.5250205086136177,
+              "ci95": [
+                0.47980120756436545,
+                0.5728912771236564
+              ],
+              "boot_std": 0.023799121473349314,
+              "excludes_null": false,
+              "share_draws_at_or_below_null": 0.1396
+            }
+          },
+          "XGBoost": {
+            "ROC-AUC": {
+              "estimate": 0.5126241910491295,
+              "ci95": [
+                0.4659358269986795,
+                0.5639020002929666
+              ],
+              "boot_std": 0.025177550826626614,
+              "excludes_null": false,
+              "share_draws_at_or_below_null": 0.2926
+            },
+            "Balanced Accuracy": {
+              "estimate": 0.5226050496764196,
+              "ci95": [
+                0.4813557506008116,
+                0.5658241799988262
+              ],
+              "boot_std": 0.021766667743005782,
+              "excludes_null": false,
+              "share_draws_at_or_below_null": 0.1434
+            }
+          }
+        },
+        "differences": {
+          "MLP - Random Forest": {
+            "ROC-AUC": {
+              "estimate": 0.0045118949958983245,
+              "ci95": [
+                -0.05228892484163732,
+                0.059571670326547636
+              ],
+              "boot_std": 0.02876432057236447,
+              "excludes_null": false,
+              "share_draws_at_or_below_null": 0.4464
+            },
+            "Balanced Accuracy": {
+              "estimate": 0.0031788351107465695,
+              "ci95": [
+                -0.04564822542465631,
+                0.0505382993817947
+              ],
+              "boot_std": 0.024772418803152948,
+              "excludes_null": false,
+              "share_draws_at_or_below_null": 0.4528
+            }
+          },
+          "MLP - XGBoost": {
+            "ROC-AUC": {
+              "estimate": 0.02365326770576981,
+              "ci95": [
+                -0.036745407425751025,
+                0.08474360438556418
+              ],
+              "boot_std": 0.03120486431162989,
+              "excludes_null": false,
+              "share_draws_at_or_below_null": 0.2378
+            },
+            "Balanced Accuracy": {
+              "estimate": 0.005594294047944648,
+              "ci95": [
+                -0.04681390226320425,
+                0.05744331705189791
+              ],
+              "boot_std": 0.026520836609158494,
+              "excludes_null": false,
+              "share_draws_at_or_below_null": 0.4368
+            }
+          }
+        },
+        "prediction_sources": {
+          "MLP": "models/RELIANCE/mlp/20261029_200739_879921/test_preds.csv",
+          "Random Forest": "data/predictions/RELIANCE.NS_random_forest_Target_Direction_test_preds.csv",
+          "XGBoost": "data/predictions/RELIANCE.NS_xgboost_Target_Direction_test_preds.csv"
+        },
+        "block_length_sensitivity": {
+          "5": {
+            "ROC-AUC CI95": {
+              "MLP": [
+                0.4834129647428243,
+                0.5925254201245065
+              ],
+              "Random Forest": [
+                0.4751560496432695,
+                0.5898307687998198
+              ],
+              "XGBoost": [
+                0.46372559987829004,
+                0.5677921565966488
+              ],
+              "MLP - Random Forest": [
+                -0.05432509702800645,
+                0.06118119311474496
+              ]
+            }
+          },
+          "20": {
+            "ROC-AUC CI95": {
+              "MLP": [
+                0.47591605215113625,
+                0.5945168602572352
+              ],
+              "Random Forest": [
+                0.46997688256238374,
+                0.5920245853080569
+              ],
+              "XGBoost": [
+                0.4685974726007443,
+                0.5647026651782885
+              ],
+              "MLP - Random Forest": [
+                -0.04745575571685369,
+                0.055859236056109526
+              ]
+            }
+          }
+        },
+        "chance_test": {
+          "MLP": {
+            "method": "circular shift of labels vs predictions, shifts 20..399",
+            "n_shifts": 380,
+            "ROC-AUC": {
+              "observed": 0.5362774587548993,
+              "p_value": 0.09448818897637795,
+              "null_95th_pct": 0.5468747151581442
+            },
+            "Balanced Accuracy": {
+              "observed": 0.5281993437243643,
+              "p_value": 0.14435695538057744,
+              "null_95th_pct": 0.5377472427308359
+            }
+          },
+          "Random Forest": {
+            "method": "circular shift of labels vs predictions, shifts 20..399",
+            "n_shifts": 380,
+            "ROC-AUC": {
+              "observed": 0.531765563759001,
+              "p_value": 0.12860892388451445,
+              "null_95th_pct": 0.5431945583811868
+            },
+            "Balanced Accuracy": {
+              "observed": 0.5250205086136177,
+              "p_value": 0.1784776902887139,
+              "null_95th_pct": 0.5393423571233251
+            }
+          },
+          "XGBoost": {
+            "method": "circular shift of labels vs predictions, shifts 20..399",
+            "n_shifts": 380,
+            "ROC-AUC": {
+              "observed": 0.5126241910491295,
+              "p_value": 0.3438320209973753,
+              "null_95th_pct": 0.5487763193874761
+            },
+            "Balanced Accuracy": {
+              "observed": 0.5226050496764196,
+              "p_value": 0.2388451443569554,
+              "null_95th_pct": 0.5417008476893629
+            }
+          }
+        }
+      },
+      "threshold_band": {
+        "run_id": "20261029_200739_879921",
+        "ticker": "RELIANCE.NS",
+        "execution": "next_open",
+        "selection_split": "validation",
+        "selection_criterion": "max Excess_Return_vs_BnH (next-open, after costs); ties -> fewer trades",
+        "cost_per_side": 0.0015,
+        "validation_prob_range": [
+          0.46917495,
+          0.54507595
+        ],
+        "validation_grid": [
+          {
+            "half_width": 0.0,
+            "Entry_Threshold": 0.5,
+            "Exit_Threshold": 0.5,
+            "Days_Tested": 283,
+            "Strategy_Total_Return": -0.14676577831957827,
+            "BnH_Total_Return": 0.07166142642703277,
+            "Excess_Return_vs_BnH": -0.21842720474661104,
+            "Strategy_Sharpe": -1.5591757524821765,
+            "BnH_Sharpe": 0.12227557235383217,
+            "Strategy_Max_Drawdown": -0.19925014821958087,
+            "Trades": 40,
+            "Win_Rate_Trade": 0.375,
+            "Win_Rate_Day": 0.4954954954954955,
+            "Position_Changes": 80,
+            "Annual_Turnover": 71.23674911660777,
+            "Total_Cost_Paid": 0.12000000000000001,
+            "Exposure": 0.392226148409894
+          },
+          {
+            "half_width": 0.005,
+            "Entry_Threshold": 0.505,
+            "Exit_Threshold": 0.495,
+            "Days_Tested": 283,
+            "Strategy_Total_Return": 0.010691622462652761,
+            "BnH_Total_Return": 0.07166142642703277,
+            "Excess_Return_vs_BnH": -0.06096980396438001,
+            "Strategy_Sharpe": -0.3324748829821209,
+            "BnH_Sharpe": 0.12227557235383217,
+            "Strategy_Max_Drawdown": -0.11342734993900916,
+            "Trades": 20,
+            "Win_Rate_Trade": 0.45,
+            "Win_Rate_Day": 0.5304347826086957,
+            "Position_Changes": 40,
+            "Annual_Turnover": 35.618374558303884,
+            "Total_Cost_Paid": 0.06,
+            "Exposure": 0.40636042402826855
+          },
+          {
+            "half_width": 0.01,
+            "Entry_Threshold": 0.51,
+            "Exit_Threshold": 0.49,
+            "Days_Tested": 283,
+            "Strategy_Total_Return": -0.09563136632485725,
+            "BnH_Total_Return": 0.07166142642703277,
+            "Excess_Return_vs_BnH": -0.16729279275189002,
+            "Strategy_Sharpe": -1.0476003040943984,
+            "BnH_Sharpe": 0.12227557235383217,
+            "Strategy_Max_Drawdown": -0.17502874984031325,
+            "Trades": 12,
+            "Win_Rate_Trade": 0.4166666666666667,
+            "Win_Rate_Day": 0.5071428571428571,
+            "Position_Changes": 24,
+            "Annual_Turnover": 21.37102473498233,
+            "Total_Cost_Paid": 0.036000000000000004,
+            "Exposure": 0.49469964664310956
+          },
+          {
+            "half_width": 0.015,
+            "Entry_Threshold": 0.515,
+            "Exit_Threshold": 0.485,
+            "Days_Tested": 283,
+            "Strategy_Total_Return": -0.01589734302503698,
+            "BnH_Total_Return": 0.07166142642703277,
+            "Excess_Return_vs_BnH": -0.08755876945206975,
+            "Strategy_Sharpe": -0.4292241285558034,
+            "BnH_Sharpe": 0.12227557235383217,
+            "Strategy_Max_Drawdown": -0.1383386673998901,
+            "Trades": 8,
+            "Win_Rate_Trade": 0.5,
+            "Win_Rate_Day": 0.5172413793103449,
+            "Position_Changes": 16,
+            "Annual_Turnover": 14.247349823321555,
+            "Total_Cost_Paid": 0.024,
+            "Exposure": 0.5123674911660777
+          },
+          {
+            "half_width": 0.02,
+            "Entry_Threshold": 0.52,
+            "Exit_Threshold": 0.48,
+            "Days_Tested": 283,
+            "Strategy_Total_Return": 0.04019411573524856,
+            "BnH_Total_Return": 0.07166142642703277,
+            "Excess_Return_vs_BnH": -0.03146731069178421,
+            "Strategy_Sharpe": -0.07264514778097964,
+            "BnH_Sharpe": 0.12227557235383217,
+            "Strategy_Max_Drawdown": -0.1606208863549382,
+            "Trades": 7,
+            "Win_Rate_Trade": 0.42857142857142855,
+            "Win_Rate_Day": 0.5238095238095238,
+            "Position_Changes": 14,
+            "Annual_Turnover": 12.46643109540636,
+            "Total_Cost_Paid": 0.021,
+            "Exposure": 0.5936395759717314
+          },
+          {
+            "half_width": 0.025,
+            "Entry_Threshold": 0.525,
+            "Exit_Threshold": 0.475,
+            "Days_Tested": 283,
+            "Strategy_Total_Return": -0.06516084930083732,
+            "BnH_Total_Return": 0.07166142642703277,
+            "Excess_Return_vs_BnH": -0.1368222757278701,
+            "Strategy_Sharpe": -0.6216910666824318,
+            "BnH_Sharpe": 0.12227557235383217,
+            "Strategy_Max_Drawdown": -0.24751774885444333,
+            "Trades": 3,
+            "Win_Rate_Trade": 0.3333333333333333,
+            "Win_Rate_Day": 0.5054347826086957,
+            "Position_Changes": 6,
+            "Annual_Turnover": 5.342756183745583,
+            "Total_Cost_Paid": 0.009000000000000001,
+            "Exposure": 0.6501766784452296
+          },
+          {
+            "half_width": 0.03,
+            "Entry_Threshold": 0.53,
+            "Exit_Threshold": 0.47,
+            "Days_Tested": 283,
+            "Strategy_Total_Return": 0.018424396557805256,
+            "BnH_Total_Return": 0.07166142642703277,
+            "Excess_Return_vs_BnH": -0.053237029869227515,
+            "Strategy_Sharpe": -0.12355649728701518,
+            "BnH_Sharpe": 0.12227557235383217,
+            "Strategy_Max_Drawdown": -0.24016100286412345,
+            "Trades": 2,
+            "Win_Rate_Trade": 0.5,
+            "Win_Rate_Day": 0.4798206278026906,
+            "Position_Changes": 4,
+            "Annual_Turnover": 3.5618374558303887,
+            "Total_Cost_Paid": 0.006,
+            "Exposure": 0.7879858657243817
+          },
+          {
+            "half_width": 0.05,
+            "Entry_Threshold": 0.55,
+            "Exit_Threshold": 0.45,
+            "Days_Tested": 283,
+            "Strategy_Total_Return": 0.0,
+            "BnH_Total_Return": 0.07166142642703277,
+            "Excess_Return_vs_BnH": -0.07166142642703277,
+            "Strategy_Sharpe": 0.0,
+            "BnH_Sharpe": 0.12227557235383217,
+            "Strategy_Max_Drawdown": 0.0,
+            "Trades": 0,
+            "Win_Rate_Trade": 0.0,
+            "Win_Rate_Day": 0.0,
+            "Position_Changes": 0,
+            "Annual_Turnover": 0.0,
+            "Total_Cost_Paid": 0.0,
+            "Exposure": 0.0
+          }
+        ],
+        "chosen_half_width": 0.02,
+        "test_result": {
+          "half_width": 0.02,
+          "Entry_Threshold": 0.52,
+          "Exit_Threshold": 0.48,
+          "Days_Tested": 419,
+          "Strategy_Total_Return": -0.0015671636372810438,
+          "BnH_Total_Return": -0.014329656273181945,
+          "Excess_Return_vs_BnH": 0.012762492635900902,
+          "Strategy_Sharpe": -0.2792424883016333,
+          "BnH_Sharpe": -0.1643341696337237,
+          "Strategy_Max_Drawdown": -0.16749276700288085,
+          "Trades": 9,
+          "Win_Rate_Trade": 0.5555555555555556,
+          "Win_Rate_Day": 0.47928994082840237,
+          "Position_Changes": 18,
+          "Annual_Turnover": 10.825775656324582,
+          "Total_Cost_Paid": 0.027000000000000003,
+          "Exposure": 0.4033412887828162
+        },
+        "note": "Test evaluated once, for the chosen band only."
+      },
       "artifacts": {
         "model": "models/RELIANCE/mlp/20261029_200739_879921/model.pt",
         "scaler": "models/RELIANCE/mlp/20261029_200739_879921/scaler.joblib",
-        "test_preds": "models/RELIANCE/mlp/20261029_200739_879921/test_preds.csv"
+        "test_preds": "models/RELIANCE/mlp/20261029_200739_879921/test_preds.csv",
+        "perm_importance": "models/RELIANCE/mlp/20261029_200739_879921/RELIANCE.NS_mlp_val_perm_importance.csv",
+        "perm_importance_split": "validation"
       }
     }
   }
